@@ -94,6 +94,7 @@ function migrateRolesFromEdge(req, res, reqObj) {
                         patchedOrgPermissions._permissions.update.push(teamLocation)
                         patchedOrgPermissions._permissions.delete.push(teamLocation)
 
+
                         // add permissions for the org resource
                         patchedOrgPermissions._self.read.push(teamLocation)
                         patchedOrgPermissions._self.update.push(teamLocation)
@@ -103,6 +104,14 @@ function migrateRolesFromEdge(req, res, reqObj) {
                         patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
                         patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
                         patchedOrgPermissions._permissionsHeirs.remove.push(teamLocation)
+
+                        // add shipyard permissions
+                        patchedOrgPermissions.shipyardEnvironments.create = []
+                        patchedOrgPermissions.shipyardEnvironments.create.push(teamLocation)
+
+                        patchedOrgPermissions.shipyardEnvironments.read = []
+                        patchedOrgPermissions.shipyardEnvironments.read.push(teamLocation)
+
                       }
                       else if (body.name.indexOf('opsadmin') !== -1) {
                         patchedOrgPermissions._self.read.push(teamLocation)
