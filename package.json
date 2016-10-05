@@ -1,0 +1,22 @@
+{
+  "name": "permissions-migration",
+  "version": "0.0.1",
+  "description": "migrate edge roles into the permissions service",
+  "main": "permissions-migration.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/30x/permissions-migration.git"
+  },
+  "author": "Michael Russo",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/30x/permissions-migration/issues"
+  },
+  "homepage": "https://github.com/30x/permissions-migration#readme",
+  "dependencies": {
+    "http-helper-functions": "0.0.32"
+  }
+}
