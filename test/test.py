@@ -57,7 +57,7 @@ def main():
     permissions_migration_url = urljoin(BASE_URL, '/permissions-migration/migration-request')
     headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
     r = requests.post(permissions_migration_url, headers=headers, json=migration_request)
-    if r.status_code == 500 and "409" in r.text:
+    if r.status_code == 409:
         print 'correctly received conflict for resource %s ' % (migration_request['resource'])
     else:
         print 'failed to migrate edge org %s %s' % (r.status_code, r.text)

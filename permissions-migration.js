@@ -218,7 +218,7 @@ function getRoleDetailsFromEdge(req, res, organization, callback) {
   }
   sendExternalRequest(req, res, configuredEdgeAddress, '/v1/o/' + organization + '/userroles', 'GET', null, function (response) {
     if(response.statusCode !== 200 )
-      lib.internalError(res, 'unable to fetch roles from Edge')
+      lib.internalError(res, 'status: '+response.statusCode+', unable to fetch roles from Edge')
     else {
       var edgeRolesAndPermissions = {}
       var body = ''
@@ -268,7 +268,6 @@ function getRolePermissionsFromEdge(req, res, org, role, callback) {
 
 function requestHandler(req, res) {
   if (req.url.startsWith('/permissions-migration/migration-request')) {
-    console.log('request received')
     if (req.method == 'POST')
       lib.getServerPostObject(req, res, resourceHandler)
     else
@@ -285,7 +284,7 @@ function sendExternalRequest(serverReq, res, address, path, method, body, callba
   var scheme = addressParts[0]
   var host = addressParts[1].replace('//','')
   var useHttps = scheme === 'https'
-
+  //console.log('scheme: '+scheme+', host: '+host+', path: '+path+', method: '+method+', body: '+body)
   var headers = {
     'Accept': 'application/json',
   }
