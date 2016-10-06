@@ -40,19 +40,57 @@ def main():
     print 'sending requests to %s' % BASE_URL
 
     migration_request = {
-        'org': 'usergrid-e2e',
-        'baseLocation': 'https://api.e2e.apigee.net'
+        'resource': 'https://api.e2e.apigee.net/v1/o/usergrid-e2e'
     }
 
-    # POST namespace
+    # POST migration-request ( success )
     permissions_migration_url = urljoin(BASE_URL, '/permissions-migration/migration-request')
     headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
     r = requests.post(permissions_migration_url, headers=headers, json=migration_request)
     if r.status_code == 200:
-        print 'correctly migrated edge org %s ' % (r.headers['content-location'])
+        print 'correctly migrated edge org %s' % (r.headers['content-location'])
+    else:
+        print 'failed to migrate edge org for resource %s %s %s' % (migration_request['resource'], r.status_code, r.text)
+        return
+
+    # POST migration-request ( conflict )
+    permissions_migration_url = urljoin(BASE_URL, '/permissions-migration/migration-request')
+    headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
+    r = requests.post(permissions_migration_url, headers=headers, json=migration_request)
+    if r.status_code == 500 and "409" in r.text:
+        print 'correctly received conflict for resource %s ' % (migration_request['resource'])
     else:
         print 'failed to migrate edge org %s %s' % (r.status_code, r.text)
         return
+
+    # POST migration-request ( bad resource path)
+    migration_request = {
+        'resource': 'https://api.e2e.apigee.net/v1/notanedgeapi/usergrid-e2e'
+    }
+
+    permissions_migration_url = urljoin(BASE_URL, '/permissions-migration/migration-request')
+    headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
+    r = requests.post(permissions_migration_url, headers=headers, json=migration_request)
+    if r.status_code == 404:
+        print 'correctly refused migration for bad resource due to non-edge path %s ' % (migration_request['resource'])
+    else:
+        print 'failed to refuse migration for bad resource due to non-edge path %s %s' % (r.status_code, r.text)
+        return
+
+    # POST migration-request ( bad resource host)
+    migration_request = {
+        'resource': 'https://api.enterprise.apigee.com/v1/o/usergrid-e2e'
+    }
+
+    permissions_migration_url = urljoin(BASE_URL, '/permissions-migration/migration-request')
+    headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
+    r = requests.post(permissions_migration_url, headers=headers, json=migration_request)
+    if r.status_code == 404:
+        print 'correctly refused migration for bad resource due to host mismatch %s ' % (migration_request['resource'])
+    else:
+        print 'failed to refuse migration for bad resource due to host mismatch %s %s' % (r.status_code, r.text)
+        return
+
     return
 
 
