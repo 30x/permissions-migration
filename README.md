@@ -7,9 +7,10 @@ only migrating the default Edge roles and permissions.
 
 In order for this service to work properly, the following ENV variables must be available with valid values:  
 
-`EDGE_HOST`
-`CLIENT_ID`
-`CLIENT_SECRET`
+`EDGE_EDGE_ADDRESS`  
+`PERMISSIONS_MIGRATION_CLIENTID_ID`  
+`CLIENT_PERMISSIONS_MIGRATION_CLIENTSECRET`  
+
 
 # Testing
 
