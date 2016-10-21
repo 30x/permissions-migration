@@ -1,1 +1,1 @@
-docker push thirtyx/permissions-migration:0.0.3
+docker push thirtyx/permissions-migration:0.0.4
