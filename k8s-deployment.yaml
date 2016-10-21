@@ -1,0 +1,46 @@
+
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  name: permissions-migration
+  labels:
+    name: permissions-migration
+  namespace: apigee
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      component: permissions-migration
+  template:
+    metadata:
+      labels:
+        component: permissions-migration
+        routable: "true"
+      annotations:
+        privateHosts: sso.k8s.dev
+        privatePaths: 3000:/permissions-migration/migration-request
+    spec:
+      containers:
+      - name: permissions-migration
+        image: thirtyx/permissions-migration:0.0.4
+        imagePullPolicy: IfNotPresent
+        env:
+          - name: PORT
+            value: "3000"
+          - name: INTERNAL_ROUTER_HOST
+            value: "internal-router"
+          - name: PERMISSIONS_MIGRATION_CLIENTID
+            value: "permissions-client"
+          - name: PERMISSIONS_MIGRATION_CLIENTSECRET
+            value: "permissionsecret"
+          - name: EDGE_ADDRESS
+            value: "https://api.e2e.apigee.net"
+          - name: INTERNAL_SCHEME
+            value: "http" 
+          - name: SHIPYARD_PRIVATE_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: routing
+                key: private-api-key
+        ports:
+          - containerPort: 3000          
