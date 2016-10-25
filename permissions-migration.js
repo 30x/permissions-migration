@@ -25,16 +25,13 @@ function resourceHandler(req, res, reqObj){
       var edgeHost = matches[1]
       var org = matches[2]
       // check to see if permissions already exist first
-      lib.sendInternalRequest(req.headers, '/permissions?'+reqObj.resource, 'GET', null, {}, function(err, clientRes){
-        if (err)
-          lib.internalError(res, err)
+      lib.sendInternalRequestThen(req, res, '/permissions?'+reqObj.resource, 'GET', null, {}, function(clientRes){
+        if(clientRes.statusCode == 200)
+          lib.respond(req,res, 409, {}, {statusCode:409, msg: 'Permissions already exist for '+reqObj.resource}, 'application/json')
+        else if( clientRes.statusCode == 404)
+          migrateOrgPermissionsFromEdge(req, res, org)
         else
-          if(clientRes.statusCode == 200)
-            lib.respond(req,res, 409, {}, {statusCode:409, msg: 'Permissions already exist for '+reqObj.resource}, 'application/json')
-          else if( clientRes.statusCode == 404)
-            migrateOrgPermissionsFromEdge(req, res, org)
-          else
-            lib.internalError(res, 'status: '+clientRes.statusCode+', unable to verify if permissions already exist for resource '+reqObj.resource)
+          lib.internalError(res, 'status: '+clientRes.statusCode+', unable to verify if permissions already exist for resource '+reqObj.resource)
       })
     }
   }
@@ -115,101 +112,93 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
                         'content-type': 'application/json',
                         'authorization': userAuth
                       }
-                      lib.sendInternalRequest(req.headers, '/teams', 'POST', JSON.stringify(templates.team(configuredEdgeAddress, organization, edgeRoles[i], permissionsUsers)), headers, function (err, clientRes) {
-                        if (err)
-                          lib.internalError(res, err)
-                        else {
-                          rolesProcessed++
-                          var body = ''
-                          clientRes.on('data', function (d) {body += d})
-                          clientRes.on('end', function () {
-                            body = JSON.parse(body)
-                            var teamLocation = clientRes.headers['location']
-                            if (body.name.indexOf('orgadmin') !== -1) {
-                              // add permissions to modify the org's permission document
-                              patchedOrgPermissions._permissions.read.push(teamLocation)
-                              patchedOrgPermissions._permissions.update.push(teamLocation)
-                              patchedOrgPermissions._permissions.delete.push(teamLocation)
+                      lib.sendInternalRequestThen(req, res, '/teams', 'POST', JSON.stringify(templates.team(configuredEdgeAddress, organization, edgeRoles[i], permissionsUsers)), headers, function (clientRes) {
+                        rolesProcessed++
+                        var body = ''
+                        clientRes.on('data', function (d) {body += d})
+                        clientRes.on('end', function () {
+                          body = JSON.parse(body)
+                          var teamLocation = clientRes.headers['location']
+                          if (body.name.indexOf('orgadmin') !== -1) {
+                            // add permissions to modify the org's permission document
+                            patchedOrgPermissions._permissions.read.push(teamLocation)
+                            patchedOrgPermissions._permissions.update.push(teamLocation)
+                            patchedOrgPermissions._permissions.delete.push(teamLocation)
 
 
-                              // add permissions for the org resource
-                              patchedOrgPermissions._self.read.push(teamLocation)
-                              patchedOrgPermissions._self.update.push(teamLocation)
-                              patchedOrgPermissions._self.delete.push(teamLocation)
+                            // add permissions for the org resource
+                            patchedOrgPermissions._self.read.push(teamLocation)
+                            patchedOrgPermissions._self.update.push(teamLocation)
+                            patchedOrgPermissions._self.delete.push(teamLocation)
 
-                              // add permissions heirs
-                              patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-                              patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
-                              patchedOrgPermissions._permissionsHeirs.remove.push(teamLocation)
+                            // add permissions heirs
+                            patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
+                            patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
+                            patchedOrgPermissions._permissionsHeirs.remove.push(teamLocation)
 
-                              // add shipyard permissions
-                              patchedOrgPermissions.shipyardEnvironments.create = []
-                              patchedOrgPermissions.shipyardEnvironments.create.push(teamLocation)
+                            // add shipyard permissions
+                            patchedOrgPermissions.shipyardEnvironments.create = []
+                            patchedOrgPermissions.shipyardEnvironments.create.push(teamLocation)
 
-                              patchedOrgPermissions.shipyardEnvironments.read = []
-                              patchedOrgPermissions.shipyardEnvironments.read.push(teamLocation)
+                            patchedOrgPermissions.shipyardEnvironments.read = []
+                            patchedOrgPermissions.shipyardEnvironments.read.push(teamLocation)
 
+                          }
+                          else if (body.name.indexOf('opsadmin') !== -1) {
+                            patchedOrgPermissions._self.read.push(teamLocation)
+                            patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
+                            patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
+
+                          }
+                          else if (body.name.indexOf('businessuser') !== -1) {
+                            patchedOrgPermissions._self.read.push(teamLocation)
+                            patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
+                            patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
+
+                          }
+                          else if (body.name.indexOf('user') !== -1) {
+                            patchedOrgPermissions._self.read.push(teamLocation)
+                            patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
+                            patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
+
+                          }
+                          else if (body.name.indexOf('readonlyadmin') !== -1) {
+                            patchedOrgPermissions._permissions.read.push(teamLocation)
+
+                            // add permissions for the org resource
+                            patchedOrgPermissions._self.read.push(teamLocation)
+
+                            // add permissions heirs
+                            patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
+
+                          }
+                          else {
+                            // not a standard Edge role, just add read permissions for the org for now
+                            patchedOrgPermissions._self.read.push(teamLocation)
+                            patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
+                            patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
+
+                          }
+
+                          // now patch the permissions for the org after looping through all the roles(teams)
+                          if (rolesProcessed === edgeRoles.length) {
+                            var headers = {
+                              'content-type': 'application/merge-patch+json',
+                              'if-match': ifMatch,
+                              'authorization': userAuth
                             }
-                            else if (body.name.indexOf('opsadmin') !== -1) {
-                              patchedOrgPermissions._self.read.push(teamLocation)
-                              patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-                              patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
-
-                            }
-                            else if (body.name.indexOf('businessuser') !== -1) {
-                              patchedOrgPermissions._self.read.push(teamLocation)
-                              patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-                              patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
-
-                            }
-                            else if (body.name.indexOf('user') !== -1) {
-                              patchedOrgPermissions._self.read.push(teamLocation)
-                              patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-                              patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
-
-                            }
-                            else if (body.name.indexOf('readonlyadmin') !== -1) {
-                              patchedOrgPermissions._permissions.read.push(teamLocation)
-
-                              // add permissions for the org resource
-                              patchedOrgPermissions._self.read.push(teamLocation)
-
-                              // add permissions heirs
-                              patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-
-                            }
-                            else {
-                              // not a standard Edge role, just add read permissions for the org for now
-                              patchedOrgPermissions._self.read.push(teamLocation)
-                              patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-                              patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
-
-                            }
-
-                            // now patch the permissions for the org after looping through all the roles(teams)
-                            if (rolesProcessed === edgeRoles.length) {
-                              var headers = {
-                                'content-type': 'application/merge-patch+json',
-                                'if-match': ifMatch,
-                                'authorization': userAuth
-                              }
-                              lib.sendInternalRequest(req.headers, '/permissions?' + patchedOrgPermissions._subject, 'PATCH', JSON.stringify(patchedOrgPermissions), headers, function (err, clientRes) {
-                                if (err)
-                                  lib.internalError(res, err)
-                                else {
-                                  var body = ''
-                                  clientRes.on('data', function (d) {body += d})
-                                  clientRes.on('end', function () {
-                                    if (clientRes.statusCode === 200)
-                                      lib.respond(req, res, clientRes.statusCode, clientRes.headers, patchedOrgPermissions, 'application/json')
-                                    else
-                                      lib.internalError(res, 'failed to patch permissions for org, err: ' + body)
-                                  })
-                                }
+                            lib.sendInternalRequestThen(req, res, '/permissions?' + patchedOrgPermissions._subject, 'PATCH', JSON.stringify(patchedOrgPermissions), headers, function (clientRes) {
+                              var body = ''
+                              clientRes.on('data', function (d) {body += d})
+                              clientRes.on('end', function () {
+                                if (clientRes.statusCode === 200)
+                                  lib.respond(req, res, clientRes.statusCode, clientRes.headers, patchedOrgPermissions, 'application/json')
+                                else
+                                  lib.internalError(res, 'failed to patch permissions for org, err: ' + body)
                               })
-                            }
-                          })
-                        }
+                            })
+                          }
+                        })
                       })
                     }
                   })
