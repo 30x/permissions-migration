@@ -322,6 +322,20 @@ function sendExternalRequest(serverReq, res, address, path, method, body, callba
 
 
 var port = process.env.PORT
-http.createServer(requestHandler).listen(port, function () {
-  console.log(`server is listening on ${port}`)
-})
+function start() {
+  http.createServer(requestHandler).listen(port, function () {
+    console.log(`server is listening on ${port}`)
+  })
+}
+
+if (process.env.INTERNAL_SY_ROUTER_HOST == 'kubernetes_host_ip') 
+  lib.getHostIPThen(function(err, hostIP){
+    if (err) 
+      process.exit(1)
+    else {
+      process.env.INTERNAL_SY_ROUTER_HOST = hostIP
+      start()
+    }
+  })
+else 
+  start()
