@@ -30,7 +30,7 @@ spec:
           - name: INTERNAL_SY_ROUTER_HOST
             value: "kubernetes_host_ip"
           - name: INTERNAL_SY_ROUTER_PORT
-            value: "81"
+            value: "30556"
           - name: PERMISSIONS_MIGRATION_CLIENTID
             value: "permissions-client"
           - name: PERMISSIONS_MIGRATION_CLIENTSECRET
