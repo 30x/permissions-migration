@@ -27,7 +27,7 @@ function resourceHandler(req, res, reqObj){
       // check to see if permissions already exist first
       lib.sendInternalRequestThen(req, res, '/permissions?'+reqObj.resource, 'GET', null, {}, function(clientRes){
         if(clientRes.statusCode == 200)
-          lib.respond(req,res, 409, {}, {statusCode:409, msg: 'Permissions already exist for '+reqObj.resource}, 'application/json')
+          lib.respond(req,res, 409, {}, {statusCode:409, msg: 'Permissions already exist for '+reqObj.resource})
         else if( clientRes.statusCode == 404)
           migrateOrgPermissionsFromEdge(req, res, org)
         else
@@ -192,7 +192,7 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
                               clientRes.on('data', function (d) {body += d})
                               clientRes.on('end', function () {
                                 if (clientRes.statusCode === 200)
-                                  lib.respond(req, res, clientRes.statusCode, clientRes.headers, patchedOrgPermissions, 'application/json')
+                                  lib.respond(req, res, clientRes.statusCode, clientRes.headers, patchedOrgPermissions)
                                 else
                                   lib.internalError(res, 'failed to patch permissions for org, err: ' + body)
                               })
