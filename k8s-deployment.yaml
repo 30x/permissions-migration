@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
       - name: permissions-migration
-        image: thirtyx/permissions-migration:0.0.4
+        image: permissions-migration
         imagePullPolicy: IfNotPresent
         env:
           - name: PORT
