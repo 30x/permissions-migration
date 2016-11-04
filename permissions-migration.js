@@ -269,7 +269,7 @@ function getRolePermissionsFromEdge(req, res, org, role, callback) {
 function requestHandler(req, res) {
   if (req.url.startsWith('/permissions-migration/migration-request')) {
     if (req.method == 'POST')
-      lib.getServerPostObject(req, res, resourceHandler)
+      lib.getServerPostObject(req, res, (x) => resourceHandler(req, res, x))
     else
       lib.methodNotAllowed(req, res, ['POST'])
   }

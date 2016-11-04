@@ -1,2 +1,2 @@
 docker build -t permissions-migration .
-docker tag -f permissions-migration thirtyx/permissions-migration:0.0.7
+docker tag -f permissions-migration thirtyx/permissions-migration:0.0.8
