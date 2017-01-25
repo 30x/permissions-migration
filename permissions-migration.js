@@ -101,8 +101,7 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
         pLib.createPermissionsThen(req, res, orgPermission._subject, orgPermission, function (err, permissionsURL, permissions, responseHeaders) {
           var ifMatch = responseHeaders['etag']
           //console.log('edge roles and permissions ---> '+JSON.stringify(edgeRolesAndPermissions))
-          var edgeRoles = Object.keys(edgeRolesAndPermissions)
-          var clientIDAuth = `Bearer ${clientToken}`
+          var totalNumberOfRoles = Object.keys(edgeRolesAndPermissions).length
           withEdgeUserUUIDsDo(res, issuer, clientToken, edgeRolesAndPermissions, function(ssoUsers) {
             var emailToPermissionsUserMapping = {}
             for (var j = 0; j < ssoUsers.length; j++) {
@@ -125,7 +124,7 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
               var headers = {
                 'accept': 'application/json',
                 'content-type': 'application/json',
-                'authorization': clientIDAuth
+                'authorization': `Bearer ${clientToken}`
               }
               var team = templates.team(configuredEdgeAddress, organization, edgeRole, permissionsUsers)
               team.roles = {}
@@ -193,17 +192,16 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
                   }
 
                   // now patch the permissions for the org after looping through all the roles(teams)
-                  if (rolesProcessed === edgeRoles.length) {
+                  if (rolesProcessed === totalNumberOfRoles) {
                     var headers = {
                       'content-type': 'application/merge-patch+json',
                       'if-match': ifMatch,
-                      'authorization': clientIDAuth
+                      'authorization': `Bearer ${clientToken}`
                     }
-                    console.log('clientToken', clientToken, 'clientID', lib.getUserFromToken(clientToken), 'clientIDAuth', clientIDAuth)
                     lib.sendInternalRequestThen(req, res, '/permissions?' + patchedOrgPermissions._subject, 'PATCH', JSON.stringify(patchedOrgPermissions), headers, function (clientRes) {
                       var body = ''
                       clientRes.on('data', function (d) {body += d})
-                      clientRes.on('end', function () {
+                      clientRes.on('end', function () { 
                         if (clientRes.statusCode === 200)
                           lib.respond(req, res, clientRes.statusCode, clientRes.headers, patchedOrgPermissions)
                         else
@@ -225,14 +223,15 @@ function getRoleDetailsFromEdge(req, res, organization, callback) {
   if (organization == null) {
     lib.badRequest(res, 'organization must be provided')
   }
+  var rolesPath = '/v1/o/' + organization + '/userroles'
   sendExternalRequest(req, res, configuredEdgeAddress, '/v1/o/' + organization + '/userroles', 'GET', null, function (response) {
-    if(response.statusCode !== 200 )
-      lib.internalError(res, 'status: '+response.statusCode+', unable to fetch roles from Edge')
-    else {
-      var edgeRolesAndPermissions = {}
-      var body = ''
-      response.on('data', function (d) {body += d})
-      response.on('end', function () {
+    var body = ''
+    response.on('data', function (d) {body += d})
+    response.on('end', function () {
+      if(response.statusCode !== 200 )
+        lib.internalError(res, `Unable to fetch roles from Edge. url: ${rolesPath} status: ${response.statusCode} user: ${lib.getUser(req.headers.authorization)} body: ${body}`)
+      else {
+        var edgeRolesAndPermissions = {}
         var roles = JSON.parse(body)
         var processed = 0
         roles.forEach(x => {
@@ -248,8 +247,8 @@ function getRoleDetailsFromEdge(req, res, organization, callback) {
             })
           })
         })
-      })
-    }
+      }
+    })
   })
 }
 

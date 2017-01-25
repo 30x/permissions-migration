@@ -13,26 +13,8 @@ def b64_decode(data):
         data += b'='* missing_padding
     return base64.decodestring(data)
 
-if 'APIGEE_TOKEN1' in env:
-    TOKEN1 = env['APIGEE_TOKEN1']
-else:
-    with open('token.txt') as f:
-        TOKEN1 = f.read()
+TOKEN1 = env['APIGEE_TOKEN1']
 USER1 = json.loads(b64_decode(TOKEN1.split('.')[1]))['user_id']
-
-if 'APIGEE_TOKEN2' in env:
-    TOKEN2 = env['APIGEE_TOKEN2']
-else:
-    with open('token2.txt') as f:
-        TOKEN2 = f.read()
-USER2 = json.loads(b64_decode(TOKEN2.split('.')[1]))['user_id']
-
-if 'APIGEE_TOKEN3' in env:
-    TOKEN3 = env['APIGEE_TOKEN3']
-else:
-    with open('token3.txt') as f:
-        TOKEN3 = f.read()
-USER3 = json.loads(b64_decode(TOKEN3.split('.')[1]))['user_id']
 
 def main():
     
