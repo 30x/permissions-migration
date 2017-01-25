@@ -52,8 +52,8 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
         //console.log('edge roles and permissions ---> '+JSON.stringify(edgeRolesAndPermissions))
         var edgeRoles = Object.keys(edgeRolesAndPermissions)
         var allUsers = []
-        for (var i=0; i < edgeRoles.length; i++) {
-          allUsers = allUsers.concat(edgeRolesAndPermissions[edgeRoles[i]].users) // allows duplicates, that's fine
+        for (var edgeRole in edgeRolesAndPermissions) {
+          allUsers = allUsers.concat(edgeRolesAndPermissions[edgeRole].users) // allows duplicates, that's fine
         }
         var userAuth = req.headers.authorization
 
@@ -106,12 +106,13 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
                     patchedOrgPermissions._permissionsHeirs.read = []
                     patchedOrgPermissions._permissionsHeirs.add = []
                     patchedOrgPermissions._permissionsHeirs.remove = []
-                    for (var i = 0; i < edgeRoles.length; i++) {
+
+                    for (var edgeRole in edgeRolesAndPermissions) {
 
                       var permissionsUsers = []
-                      for (var k = 0; k < edgeRolesAndPermissions[edgeRoles[i]].users.length; k++) {
-                        if (emailToPermissionsUserMapping[edgeRolesAndPermissions[edgeRoles[i]].users[k]] !== null)
-                          permissionsUsers.push(emailToPermissionsUserMapping[edgeRolesAndPermissions[edgeRoles[i]].users[k]])
+                      for (var k = 0; k < edgeRolesAndPermissions[edgeRole].users.length; k++) {
+                        if (emailToPermissionsUserMapping[edgeRolesAndPermissions[edgeRole].users[k]] !== null)
+                          permissionsUsers.push(emailToPermissionsUserMapping[edgeRolesAndPermissions[edgeRole].users[k]])
                       }
 
                       // we have all the users' UUIDs for this role, now lets create the team in the permissions service using original request object
@@ -120,11 +121,17 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
                         'content-type': 'application/json',
                         'authorization': userAuth
                       }
-                      var team = templates.team(configuredEdgeAddress, organization, edgeRoles[i], permissionsUsers)
-                      if (edgeRoles[i] == 'orgadmin') {
+                      var team = templates.team(configuredEdgeAddress, organization, edgeRole, permissionsUsers)
+                      if (edgeRole == 'orgadmin') { // make the org-admins be administrators of their own team. This allows the team to be deleted after the org itself. Otherwise there is a deadlock where deleteing either one maes the other undeletable.
                         team.permissions._self = {read: '', update: '', delete: ''}
                         team.permissions._permissions = {read: '', update: '', delete: ''}
                       }
+                      team.roles = {}
+                      var new_role = {}
+                      team.roles[orgPermission._subject] = new_role
+                      var resourcePermission = edgeRolesAndPermissions[edgeRole].permissions.resourcePermission
+                      for (var i=0; i< resourcePermission.length; i++)
+                        new_role[resourcePermission[i].path] = resourcePermission[i].permissions
                       lib.sendInternalRequestThen(req, res, '/teams', 'POST', JSON.stringify(team), headers, function (clientRes) {
                         rolesProcessed++
                         var body = ''
