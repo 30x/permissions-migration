@@ -91,11 +91,12 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
   if (organization == null)
     lib.badRequest(req, res, 'organization required in order to migrate permissions')
   else {
-    getRoleDetailsFromEdge(req, res, organization, function (edgeRolesAndPermissions) {
-      // the org exists, create initial permissions document
-      var requestUser = lib.getUser(req.headers.authorization)
-      var issuer = requestUser.split('#')[0]
-      withClientCredentialsDo(res, issuer, function(clientToken) { 
+    var requestUser = lib.getUser(req.headers.authorization)
+    var issuer = requestUser.split('#')[0]
+    withClientCredentialsDo(res, issuer, function(clientToken) { 
+      var fakeReq = {headers:{authorization: `Bearer ${clientToken}`}}
+      getRoleDetailsFromEdge(fakeReq, res, organization, function (edgeRolesAndPermissions) {
+        // the org exists, create initial permissions document
         var clientID = lib.getUserFromToken(clientToken)
         var orgPermission = templates.orgPermission(configuredEdgeAddress, organization, clientID)
         pLib.createPermissionsThen(req, res, orgPermission._subject, orgPermission, function (err, permissionsURL, permissions, responseHeaders) {
