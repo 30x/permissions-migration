@@ -49,9 +49,10 @@ def main():
         print 'failed to get permissions of edge org status: %s text: %s' % (r.status_code, r.text)
         return
 
+    abs_org_admins = urljoin(BASE_URL, org_permissions['_permissions']['update'][0])
     for team_url in org_permissions['_metadata']['sharedWith']:
-        if team_url.startswith('/team'):
-            abs_team_url = urljoin(BASE_URL, team_url)
+        abs_team_url = urljoin(BASE_URL, team_url)
+        if abs_team_url != abs_org_admins:
             r = requests.delete(abs_team_url, headers=headers)
             if r.status_code == 200:
                 print 'correctly deleted team %s' % abs_team_url 
@@ -64,6 +65,13 @@ def main():
         print 'correctly deleted permissions %s' % permissions_url 
     else:
         print 'failed to delete permissions: %s status: %s text: %s' % (permissions_url, r.status_code, r.text)
+        return
+
+    r = requests.delete(abs_org_admins, headers=headers)
+    if r.status_code == 200:
+        print 'correctly deleted org_admins %s' % abs_org_admins 
+    else:
+        print 'failed to delete org_admins: %s status: %s text: %s' % (permissions_url, r.status_code, r.text)
         return
 
     return

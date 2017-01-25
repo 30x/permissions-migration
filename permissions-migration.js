@@ -43,7 +43,6 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
     lib.badRequest(req, res, 'organization required in order to migrate permissions')
   else {
     getRoleDetailsFromEdge(req, res, organization, function (edgeRolesAndPermissions) {
-
       // the org exists, create initial permissions document
       var requestUser = lib.getUser(req.headers.authorization)
       var orgPermission = templates.orgPermission(configuredEdgeAddress, organization, requestUser)
@@ -98,6 +97,15 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
 
                     var rolesProcessed = 0
                     var patchedOrgPermissions = permissions
+                    patchedOrgPermissions._permissions.read = []
+                    patchedOrgPermissions._permissions.update = []
+                    patchedOrgPermissions._permissions.delete = []
+                    patchedOrgPermissions._self.read = []
+                    patchedOrgPermissions._self.update = []
+                    patchedOrgPermissions._self.delete = []
+                    patchedOrgPermissions._permissionsHeirs.read = []
+                    patchedOrgPermissions._permissionsHeirs.add = []
+                    patchedOrgPermissions._permissionsHeirs.remove = []
                     for (var i = 0; i < edgeRoles.length; i++) {
 
                       var permissionsUsers = []
@@ -112,7 +120,12 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
                         'content-type': 'application/json',
                         'authorization': userAuth
                       }
-                      lib.sendInternalRequestThen(req, res, '/teams', 'POST', JSON.stringify(templates.team(configuredEdgeAddress, organization, edgeRoles[i], permissionsUsers)), headers, function (clientRes) {
+                      var team = templates.team(configuredEdgeAddress, organization, edgeRoles[i], permissionsUsers)
+                      if (edgeRoles[i] == 'orgadmin') {
+                        team.permissions._self = {read: '', update: '', delete: ''}
+                        team.permissions._permissions = {read: '', update: '', delete: ''}
+                      }
+                      lib.sendInternalRequestThen(req, res, '/teams', 'POST', JSON.stringify(team), headers, function (clientRes) {
                         rolesProcessed++
                         var body = ''
                         clientRes.on('data', function (d) {body += d})
