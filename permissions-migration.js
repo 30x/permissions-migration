@@ -98,122 +98,106 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
       getRoleDetailsFromEdge(fakeReq, res, organization, function (edgeRolesAndPermissions) {
         // the org exists, create initial permissions document
         var clientID = lib.getUserFromToken(clientToken)
-        var orgPermission = templates.orgPermission(configuredEdgeAddress, organization, clientID)
-        pLib.createPermissionsThen(req, res, orgPermission._subject, orgPermission, function (err, permissionsURL, permissions, responseHeaders) {
-          var ifMatch = responseHeaders['etag']
-          //console.log('edge roles and permissions ---> '+JSON.stringify(edgeRolesAndPermissions))
-          var totalNumberOfRoles = Object.keys(edgeRolesAndPermissions).length
-          withEdgeUserUUIDsDo(res, issuer, clientToken, edgeRolesAndPermissions, function(ssoUsers) {
-            var emailToPermissionsUserMapping = {}
-            for (var j = 0; j < ssoUsers.length; j++) {
-              emailToPermissionsUserMapping[ssoUsers[j].email] = issuer + '#' + ssoUsers[j].id
+        //console.log('edge roles and permissions ---> '+JSON.stringify(edgeRolesAndPermissions))
+        var totalNumberOfRoles = Object.keys(edgeRolesAndPermissions).length
+        withEdgeUserUUIDsDo(res, issuer, clientToken, edgeRolesAndPermissions, function(ssoUsers) {
+          var emailToPermissionsUserMapping = {}
+          for (var j = 0; j < ssoUsers.length; j++) {
+            emailToPermissionsUserMapping[ssoUsers[j].email] = issuer + '#' + ssoUsers[j].id
+          }
+          //console.log('email to users mapping ---> '+JSON.stringify(emailToPermissionsUserMapping))
+
+          var rolesProcessed = 0
+          var orgPermission = templates.orgPermission(configuredEdgeAddress, organization, clientID)
+
+          for (var edgeRole in edgeRolesAndPermissions) {
+
+            var permissionsUsers = []
+            for (var k = 0; k < edgeRolesAndPermissions[edgeRole].users.length; k++) {
+              if (emailToPermissionsUserMapping[edgeRolesAndPermissions[edgeRole].users[k]] !== null)
+                permissionsUsers.push(emailToPermissionsUserMapping[edgeRolesAndPermissions[edgeRole].users[k]])
             }
-            //console.log('email to users mapping ---> '+JSON.stringify(emailToPermissionsUserMapping))
 
-            var rolesProcessed = 0
-            var patchedOrgPermissions = permissions
+            // we have all the users' UUIDs for this role, now lets create the team in the permissions service using original request object
+            var headers = {
+              'accept': 'application/json',
+              'content-type': 'application/json',
+              'authorization': `Bearer ${clientToken}`
+            }
+            var team = templates.team(configuredEdgeAddress, organization, edgeRole, permissionsUsers)
+            team.roles = {}
+            var teamRole = {}
+            team.roles[orgPermission._subject] = teamRole
+            var resourcePermission = edgeRolesAndPermissions[edgeRole].permissions.resourcePermission
+            for (var i=0; i< resourcePermission.length; i++)
+              teamRole[resourcePermission[i].path] = resourcePermission[i].permissions
+            lib.sendInternalRequestThen(req, res, '/teams', 'POST', JSON.stringify(team), headers, function (clientRes) {
+              rolesProcessed++
+              var body = ''
+              clientRes.on('data', function (d) {body += d})
+              clientRes.on('end', function () {
+                body = JSON.parse(body)
+                var teamLocation = clientRes.headers['location']
+                if (body.name.indexOf('orgadmin') !== -1) {
+                  // add permissions to modify the org's permission document
+                  orgPermission._permissions.read.push(teamLocation)
 
-            for (var edgeRole in edgeRolesAndPermissions) {
+                  // add permissions for the org resource
+                  orgPermission._self.read.push(teamLocation)
 
-              var permissionsUsers = []
-              for (var k = 0; k < edgeRolesAndPermissions[edgeRole].users.length; k++) {
-                if (emailToPermissionsUserMapping[edgeRolesAndPermissions[edgeRole].users[k]] !== null)
-                  permissionsUsers.push(emailToPermissionsUserMapping[edgeRolesAndPermissions[edgeRole].users[k]])
-              }
+                  // add permissions heirs
+                  orgPermission._permissionsHeirs.read.push(teamLocation)
+                  orgPermission._permissionsHeirs.add.push(teamLocation)
+                  orgPermission._permissionsHeirs.remove.push(teamLocation)
 
-              // we have all the users' UUIDs for this role, now lets create the team in the permissions service using original request object
-              var headers = {
-                'accept': 'application/json',
-                'content-type': 'application/json',
-                'authorization': `Bearer ${clientToken}`
-              }
-              var team = templates.team(configuredEdgeAddress, organization, edgeRole, permissionsUsers)
-              team.roles = {}
-              var new_role = {}
-              team.roles[orgPermission._subject] = new_role
-              var resourcePermission = edgeRolesAndPermissions[edgeRole].permissions.resourcePermission
-              for (var i=0; i< resourcePermission.length; i++)
-                new_role[resourcePermission[i].path] = resourcePermission[i].permissions
-              lib.sendInternalRequestThen(req, res, '/teams', 'POST', JSON.stringify(team), headers, function (clientRes) {
-                rolesProcessed++
-                var body = ''
-                clientRes.on('data', function (d) {body += d})
-                clientRes.on('end', function () {
-                  body = JSON.parse(body)
-                  var teamLocation = clientRes.headers['location']
-                  if (body.name.indexOf('orgadmin') !== -1) {
-                    // add permissions to modify the org's permission document
-                    patchedOrgPermissions._permissions.read.push(teamLocation)
+                  // add shipyard permissions
+                  orgPermission.shipyardEnvironments.create = []
+                  orgPermission.shipyardEnvironments.create.push(teamLocation)
 
-                    // add permissions for the org resource
-                    patchedOrgPermissions._self.read.push(teamLocation)
+                  orgPermission.shipyardEnvironments.read = []
+                  orgPermission.shipyardEnvironments.read.push(teamLocation)
 
-                    // add permissions heirs
-                    patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-                    patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
-                    patchedOrgPermissions._permissionsHeirs.remove.push(teamLocation)
+                } else if (body.name.indexOf('opsadmin') !== -1) {
+                  orgPermission._self.read.push(teamLocation)
+                  orgPermission._permissionsHeirs.read.push(teamLocation)
+                  orgPermission._permissionsHeirs.add.push(teamLocation)
 
-                    // add shipyard permissions
-                    patchedOrgPermissions.shipyardEnvironments.create = []
-                    patchedOrgPermissions.shipyardEnvironments.create.push(teamLocation)
+                } else if (body.name.indexOf('businessuser') !== -1) {
+                  orgPermission._self.read.push(teamLocation)
+                  orgPermission._permissionsHeirs.read.push(teamLocation)
+                  orgPermission._permissionsHeirs.add.push(teamLocation)
 
-                    patchedOrgPermissions.shipyardEnvironments.read = []
-                    patchedOrgPermissions.shipyardEnvironments.read.push(teamLocation)
+                } else if (body.name.indexOf('user') !== -1) {
+                  orgPermission._self.read.push(teamLocation)
+                  orgPermission._permissionsHeirs.read.push(teamLocation)
+                  orgPermission._permissionsHeirs.add.push(teamLocation)
 
-                  } else if (body.name.indexOf('opsadmin') !== -1) {
-                    patchedOrgPermissions._self.read.push(teamLocation)
-                    patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-                    patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
+                } else if (body.name.indexOf('readonlyadmin') !== -1) {
+                  orgPermission._permissions.read.push(teamLocation)
 
-                  } else if (body.name.indexOf('businessuser') !== -1) {
-                    patchedOrgPermissions._self.read.push(teamLocation)
-                    patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-                    patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
+                  // add permissions for the org resource
+                  orgPermission._self.read.push(teamLocation)
 
-                  } else if (body.name.indexOf('user') !== -1) {
-                    patchedOrgPermissions._self.read.push(teamLocation)
-                    patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-                    patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
+                  // add permissions heirs
+                  orgPermission._permissionsHeirs.read.push(teamLocation)
 
-                  } else if (body.name.indexOf('readonlyadmin') !== -1) {
-                    patchedOrgPermissions._permissions.read.push(teamLocation)
+                } else {
+                  // not a standard Edge role, just add read permissions for the org for now
+                  orgPermission._self.read.push(teamLocation)
+                  orgPermission._permissionsHeirs.read.push(teamLocation)
+                  orgPermission._permissionsHeirs.add.push(teamLocation)
 
-                    // add permissions for the org resource
-                    patchedOrgPermissions._self.read.push(teamLocation)
+                }
 
-                    // add permissions heirs
-                    patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-
-                  } else {
-                    // not a standard Edge role, just add read permissions for the org for now
-                    patchedOrgPermissions._self.read.push(teamLocation)
-                    patchedOrgPermissions._permissionsHeirs.read.push(teamLocation)
-                    patchedOrgPermissions._permissionsHeirs.add.push(teamLocation)
-
-                  }
-
-                  // now patch the permissions for the org after looping through all the roles(teams)
-                  if (rolesProcessed === totalNumberOfRoles) {
-                    var headers = {
-                      'content-type': 'application/merge-patch+json',
-                      'if-match': ifMatch,
-                      'authorization': `Bearer ${clientToken}`
-                    }
-                    lib.sendInternalRequestThen(req, res, '/permissions?' + patchedOrgPermissions._subject, 'PATCH', JSON.stringify(patchedOrgPermissions), headers, function (clientRes) {
-                      var body = ''
-                      clientRes.on('data', function (d) {body += d})
-                      clientRes.on('end', function () { 
-                        if (clientRes.statusCode === 200)
-                          lib.respond(req, res, clientRes.statusCode, clientRes.headers, patchedOrgPermissions)
-                        else
-                          lib.internalError(res, 'failed to patch permissions for org, err: ' + body)
-                      })
-                    })
-                  }
-                })
+                // now create the permissions for the org after looping through all the roles(teams)
+                if (rolesProcessed === totalNumberOfRoles) {
+                  pLib.createPermissionsThen(req, res, orgPermission._subject, orgPermission, function (err, permissionsURL, permissions, responseHeaders) {          
+                    lib.found(req, res, permissions, responseHeaders.etag)
+                  })
+                }
               })
-            }
-          })
+            })
+          }
         })
       })
     })
@@ -252,7 +236,6 @@ function getRoleDetailsFromEdge(req, res, organization, callback) {
     })
   })
 }
-
 
 function getRoleUsersFromEdge(req, res, org, role, callback) {
   sendExternalRequest(req, res, configuredEdgeAddress, '/v1/o/' + org + '/userroles/' + role + '/users', 'GET', null, function (response) {
