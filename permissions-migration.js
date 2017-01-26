@@ -69,8 +69,8 @@ function withEdgeUserUUIDsDo(res, issuer, clientToken, edgeRolesAndPermissions, 
 
   // translate the user emails to their SSO UUIDs
   var allUsers = []
-  for (var edgeRole in edgeRolesAndPermissions) {
-    allUsers = allUsers.concat(edgeRolesAndPermissions[edgeRole].users) // allows duplicates, that's fine
+  for (var edgeRoleName in edgeRolesAndPermissions) {
+    allUsers = allUsers.concat(edgeRolesAndPermissions[edgeRoleName].users) // allows duplicates, that's fine
   }
   sendExternalRequest(userReq, res, issuer, '/ids/Users/emails/', 'POST', JSON.stringify(allUsers), function (clientRes) {
     if (clientRes.statusCode !== 200)
@@ -86,6 +86,18 @@ function withEdgeUserUUIDsDo(res, issuer, clientToken, edgeRolesAndPermissions, 
   })
 }
 
+function buildTeam(orgURL, configuredEdgeAddress, organization, edgeRoleName, edgeRole, emailToPermissionsUserMapping) {
+  var permissionsUsers = edgeRole.users.map(user => emailToPermissionsUserMapping[user])
+  var team = templates.team(configuredEdgeAddress, organization, edgeRoleName, permissionsUsers)
+  team.roles = {}
+  var teamRole = {}
+  team.roles[orgURL] = teamRole
+  var resourcePermission = edgeRole.permissions.resourcePermission
+  for (var i=0; i< resourcePermission.length; i++)
+    teamRole[resourcePermission[i].path] = resourcePermission[i].permissions  
+  return team
+}
+
 function migrateOrgPermissionsFromEdge(req, res, organization) {
 
   if (organization == null)
@@ -97,40 +109,24 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
       var fakeReq = {headers:{authorization: `Bearer ${clientToken}`}}
       getRoleDetailsFromEdge(fakeReq, res, organization, function (edgeRolesAndPermissions) {
         // the org exists, create initial permissions document
-        var clientID = lib.getUserFromToken(clientToken)
-        //console.log('edge roles and permissions ---> '+JSON.stringify(edgeRolesAndPermissions))
-        var totalNumberOfRoles = Object.keys(edgeRolesAndPermissions).length
         withEdgeUserUUIDsDo(res, issuer, clientToken, edgeRolesAndPermissions, function(ssoUsers) {
           var emailToPermissionsUserMapping = {}
           for (var j = 0; j < ssoUsers.length; j++) {
             emailToPermissionsUserMapping[ssoUsers[j].email] = issuer + '#' + ssoUsers[j].id
           }
-          //console.log('email to users mapping ---> '+JSON.stringify(emailToPermissionsUserMapping))
-
+          var clientID = lib.getUserFromToken(clientToken)
+          var totalNumberOfRoles = Object.keys(edgeRolesAndPermissions).length
           var rolesProcessed = 0
           var orgPermission = templates.orgPermission(configuredEdgeAddress, organization, clientID)
 
-          for (var edgeRole in edgeRolesAndPermissions) {
-
-            var permissionsUsers = []
-            for (var k = 0; k < edgeRolesAndPermissions[edgeRole].users.length; k++) {
-              if (emailToPermissionsUserMapping[edgeRolesAndPermissions[edgeRole].users[k]] !== null)
-                permissionsUsers.push(emailToPermissionsUserMapping[edgeRolesAndPermissions[edgeRole].users[k]])
-            }
-
-            // we have all the users' UUIDs for this role, now lets create the team in the permissions service using original request object
+          // main loop creating teams. permissions resource for org is created when the last team has been created.
+          for (var edgeRoleName in edgeRolesAndPermissions) {
             var headers = {
               'accept': 'application/json',
               'content-type': 'application/json',
               'authorization': `Bearer ${clientToken}`
             }
-            var team = templates.team(configuredEdgeAddress, organization, edgeRole, permissionsUsers)
-            team.roles = {}
-            var teamRole = {}
-            team.roles[orgPermission._subject] = teamRole
-            var resourcePermission = edgeRolesAndPermissions[edgeRole].permissions.resourcePermission
-            for (var i=0; i< resourcePermission.length; i++)
-              teamRole[resourcePermission[i].path] = resourcePermission[i].permissions
+            var team = buildTeam(orgPermission._subject, configuredEdgeAddress, organization, edgeRoleName, edgeRolesAndPermissions[edgeRoleName], emailToPermissionsUserMapping)
             lib.sendInternalRequestThen(req, res, '/teams', 'POST', JSON.stringify(team), headers, function (clientRes) {
               rolesProcessed++
               var body = ''
