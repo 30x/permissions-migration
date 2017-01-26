@@ -1,10 +1,11 @@
 'use strict'
-var http = require('http')
-var https = require('https')
-var url = require('url')
-var lib = require('http-helper-functions')
-var templates = require('./templates.js')
+const http = require('http')
+const https = require('https')
+const url = require('url')
+const lib = require('http-helper-functions')
+const templates = require('./templates.js')
 const pLib = require('permissions-helper-functions')
+const db = require('./permissions-migration-pg.js')
 
 const configuredEdgeAddress = process.env.EDGE_ADDRESS
 const configuredEdgeHost = configuredEdgeAddress.split(':')[1].replace('//', '')
@@ -120,7 +121,8 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
           var orgPermission = templates.orgPermission(configuredEdgeAddress, organization, clientID)
 
           // main loop creating teams. permissions resource for org is created when the last team has been created.
-          for (var edgeRoleName in edgeRolesAndPermissions) {
+          var teams = {}
+          for (let edgeRoleName in edgeRolesAndPermissions) {
             var headers = {
               'accept': 'application/json',
               'content-type': 'application/json',
@@ -132,62 +134,67 @@ function migrateOrgPermissionsFromEdge(req, res, organization) {
               var body = ''
               clientRes.on('data', function (d) {body += d})
               clientRes.on('end', function () {
-                body = JSON.parse(body)
-                var teamLocation = clientRes.headers['location']
-                if (body.name.indexOf('orgadmin') !== -1) {
-                  // add permissions to modify the org's permission document
-                  orgPermission._permissions.read.push(teamLocation)
+                if (clientRes.statusCode == 201) {
+                  teams[edgeRoleName] = clientRes.headers.location
+                  body = JSON.parse(body)
+                  var teamLocation = clientRes.headers['location']
+                  if (body.name.indexOf('orgadmin') !== -1) {
+                    // add permissions to modify the org's permission document
+                    orgPermission._permissions.read.push(teamLocation)
 
-                  // add permissions for the org resource
-                  orgPermission._self.read.push(teamLocation)
+                    // add permissions for the org resource
+                    orgPermission._self.read.push(teamLocation)
 
-                  // add permissions heirs
-                  orgPermission._permissionsHeirs.read.push(teamLocation)
-                  orgPermission._permissionsHeirs.add.push(teamLocation)
-                  orgPermission._permissionsHeirs.remove.push(teamLocation)
+                    // add permissions heirs
+                    orgPermission._permissionsHeirs.read.push(teamLocation)
+                    orgPermission._permissionsHeirs.add.push(teamLocation)
+                    orgPermission._permissionsHeirs.remove.push(teamLocation)
 
-                  // add shipyard permissions
-                  orgPermission.shipyardEnvironments.create = []
-                  orgPermission.shipyardEnvironments.create.push(teamLocation)
+                    // add shipyard permissions
+                    orgPermission.shipyardEnvironments.create = []
+                    orgPermission.shipyardEnvironments.create.push(teamLocation)
 
-                  orgPermission.shipyardEnvironments.read = []
-                  orgPermission.shipyardEnvironments.read.push(teamLocation)
+                    orgPermission.shipyardEnvironments.read = []
+                    orgPermission.shipyardEnvironments.read.push(teamLocation)
 
-                } else if (body.name.indexOf('opsadmin') !== -1) {
-                  orgPermission._self.read.push(teamLocation)
-                  orgPermission._permissionsHeirs.read.push(teamLocation)
-                  orgPermission._permissionsHeirs.add.push(teamLocation)
+                  } else if (body.name.indexOf('opsadmin') !== -1) {
+                    orgPermission._self.read.push(teamLocation)
+                    orgPermission._permissionsHeirs.read.push(teamLocation)
+                    orgPermission._permissionsHeirs.add.push(teamLocation)
 
-                } else if (body.name.indexOf('businessuser') !== -1) {
-                  orgPermission._self.read.push(teamLocation)
-                  orgPermission._permissionsHeirs.read.push(teamLocation)
-                  orgPermission._permissionsHeirs.add.push(teamLocation)
+                  } else if (body.name.indexOf('businessuser') !== -1) {
+                    orgPermission._self.read.push(teamLocation)
+                    orgPermission._permissionsHeirs.read.push(teamLocation)
+                    orgPermission._permissionsHeirs.add.push(teamLocation)
 
-                } else if (body.name.indexOf('user') !== -1) {
-                  orgPermission._self.read.push(teamLocation)
-                  orgPermission._permissionsHeirs.read.push(teamLocation)
-                  orgPermission._permissionsHeirs.add.push(teamLocation)
+                  } else if (body.name.indexOf('user') !== -1) {
+                    orgPermission._self.read.push(teamLocation)
+                    orgPermission._permissionsHeirs.read.push(teamLocation)
+                    orgPermission._permissionsHeirs.add.push(teamLocation)
 
-                } else if (body.name.indexOf('readonlyadmin') !== -1) {
-                  orgPermission._permissions.read.push(teamLocation)
+                  } else if (body.name.indexOf('readonlyadmin') !== -1) {
+                    orgPermission._permissions.read.push(teamLocation)
 
-                  // add permissions for the org resource
-                  orgPermission._self.read.push(teamLocation)
+                    // add permissions for the org resource
+                    orgPermission._self.read.push(teamLocation)
 
-                  // add permissions heirs
-                  orgPermission._permissionsHeirs.read.push(teamLocation)
+                    // add permissions heirs
+                    orgPermission._permissionsHeirs.read.push(teamLocation)
 
-                } else {
-                  // not a standard Edge role, just add read permissions for the org for now
-                  orgPermission._self.read.push(teamLocation)
-                  orgPermission._permissionsHeirs.read.push(teamLocation)
-                  orgPermission._permissionsHeirs.add.push(teamLocation)
+                  } else {
+                    // not a standard Edge role, just add read permissions for the org for now
+                    orgPermission._self.read.push(teamLocation)
+                    orgPermission._permissionsHeirs.read.push(teamLocation)
+                    orgPermission._permissionsHeirs.add.push(teamLocation)
 
-                }
+                  }
+                } else
+                  log(`unable to create team. org: ${organization} role: ${edgeRoleName} stauts: ${clientRes.statusCode} body ${body}`)
 
                 // now create the permissions for the org after looping through all the roles(teams)
                 if (rolesProcessed === totalNumberOfRoles) {
-                  pLib.createPermissionsThen(req, res, orgPermission._subject, orgPermission, function (err, permissionsURL, permissions, responseHeaders) {          
+                  pLib.createPermissionsThen(req, res, orgPermission._subject, orgPermission, function (err, permissionsURL, permissions, responseHeaders) {
+                    db.recordMigration(orgPermission._subject, {teams: teams})          
                     lib.found(req, res, permissions, responseHeaders.etag)
                   })
                 }
@@ -311,8 +318,10 @@ function sendExternalRequest(serverReq, res, address, path, method, body, callba
 
 var port = process.env.PORT
 function start() {
-  http.createServer(requestHandler).listen(port, function () {
-    console.log(`server is listening on ${port}`)
+  db.init(function () {
+    http.createServer(requestHandler).listen(port, function () {
+      console.log(`server is listening on ${port}`)
+    })
   })
 }
 
