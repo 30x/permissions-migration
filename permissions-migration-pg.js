@@ -12,7 +12,7 @@ var pool = new Pool(config);
 
 function recordMigration(orgURL, data) {
   var time = Date.now()
-  var query = `INSERT INTO migrations (orgURL, migrating, data) values ('${orgURL}', FALSE, '${JSON.stringify(data)}') ON CONFLICT (orgURL) DO UPDATE SET data = EXCLUDED.data, migrating = EXCLUDED.migrating`
+  var query = `INSERT INTO migrations (orgURL, migrating, migrationtime, data) values ('${orgURL}', FALSE, ${time}, '${JSON.stringify(data)}') ON CONFLICT (orgURL) DO UPDATE SET data = EXCLUDED.data, migrating = EXCLUDED.migrating, migrationtime = EXCLUDED.migrationtime`
   pool.query(query, function (err, pgResult) {
     if (err) 
       console.log(`unable to write migration record for ${orgURL} err: ${err}`)
@@ -22,7 +22,7 @@ function recordMigration(orgURL, data) {
 }
 
 function init(callback) {
-  var query = 'CREATE TABLE IF NOT EXISTS migrations (orgURL text primary key, migrating boolean, data jsonb);'  
+  var query = 'CREATE TABLE IF NOT EXISTS migrations (orgURL text primary key, migrating boolean, migrationtime bigint, data jsonb);'  
   pool.connect(function(err, client, release) {
     if(err)
       console.error('error creating migrations table', err)
