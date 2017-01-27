@@ -12,12 +12,21 @@ const CONFIGURED_EDGE_HOST = CONFIGURED_EDGE_ADDRESS.split(':')[1].replace('//',
 const CLIENT_ID = process.env.PERMISSIONS_MIGRATION_CLIENTID
 const CLIENT_SECRET = process.env.PERMISSIONS_MIGRATION_CLIENTSECRET
 
-function resourceHandler(req, res, reqObj){
-  if(reqObj.resource == null)
+function handleMigrationRequest(req, res, body){
+  withClientCredentialsDo(req, res, function(issuer, clientToken) { 
+    var fakeReq = {headers:{authorization: `Bearer ${clientToken}`}}
+    verifyMigrationRequest(req, res, body, function(orgName, orgURL) {
+      attemptMigration(req, res, orgName, orgURL, issuer, clientToken)
+    })
+  })
+}
+
+function verifyMigrationRequest(req, res, body, callback) {
+  if(body.resource == null)
     lib.badRequest(res, 'json property resource is required')
   else {
     var orgRegex = new RegExp("^(?:http://|https://)(.*)/v1/(?:o|organizations)/(.*)/?.*$")
-    var matches = reqObj.resource.match(orgRegex)
+    var matches = body.resource.match(orgRegex)
     if(!matches || matches.length < 3 || CONFIGURED_EDGE_HOST !== matches[1])
       // doesn't look like an Edge resource or the configured edge hostname does not match the resource's hostname
       lib.notFound(req, res)
@@ -26,42 +35,53 @@ function resourceHandler(req, res, reqObj){
       var edgeHost = matches[1]
       var orgName = matches[2]
       var orgURL = CONFIGURED_EDGE_ADDRESS + '/v1/o/' + orgName
-      seeIfMigrationNeeded()
+      if (orgName == null)
+        lib.badRequest(req, res, 'orgName required in order to migrate permissions')
+      else
+        callback(orgName, orgURL)
     }
   }
+} 
+
+function attemptMigration (req, res, orgName, orgURL, issuer, clientToken) {
   var retryCount = 0;
   function seeIfMigrationNeeded () {
     // check to see if permissions already exist first
-    lib.sendInternalRequestThen(req, res, '/permissions?'+reqObj.resource, 'GET', null, {}, function(clientRes){
+    lib.sendInternalRequestThen(req, res, `/permissions?${orgURL}`, 'GET', null, {authorization: `Bearer ${clientToken}`}, function(clientRes){
       if(clientRes.statusCode == 200)
-        lib.respond(req,res, 409, {}, {statusCode:409, msg: 'Permissions already exist for '+reqObj.resource})
-      else if( clientRes.statusCode == 404)
-        if (orgName == null)
-          lib.badRequest(req, res, 'orgName required in order to migrate permissions')
-        else
-          db.setMigratingFlag(orgURL, function(err, migrating, migrationRecord) {
-            if (err)
-              lib.internalError(res, `unable to set migrating flag. err: ${err}`)
+        lib.respond(req,res, 409, {}, {statusCode:409, msg: 'Permissions already exist for '+orgURL})
+      else if (clientRes.statusCode == 404)
+        performMigration(req, res, orgName, orgURL, issuer, clientToken, function() {
+          setTimeout(function() {
+            if(++retryCount < 2)
+              seeIfMigrationNeeded ()
             else
-              if (migrating) {
-                console.log(`migration request while migration request in progress for ${orgURL}`)
-                setTimeout(function() {
-                  if(++retryCount < 2)
-                    seeIfMigrationNeeded ()
-                  else
-                    lib.internalError(res, `unable to get migration flag for orgURL ${orgURL}`)
-                }, 1000)
-              } else
-                migrateOrgPermissionsFromEdge(req, res, orgName, orgURL, migrationRecord)
-          })
+              lib.internalError(res, `unable to get migration flag for orgURL ${orgURL}`)
+          }, 1000)
+        })
       else
-        lib.internalError(res, 'status: '+clientRes.statusCode+', unable to verify if permissions already exist for resource '+reqObj.resource)
+        lib.internalError(res, 'status: '+clientRes.statusCode+', unable to verify if permissions already exist for resource '+orgURL)
     })
   }
+  seeIfMigrationNeeded ()
 }
 
-function withClientCredentialsDo(res, issuer, callback) {
+function performMigration(req, res, orgName, orgURL, issuer, clientToken, busyCallback) {
+  db.setMigratingFlag(orgURL, function(err, migrating, migrationRecord) {
+    if (err)
+      lib.internalError(res, `unable to set migrating flag. err: ${err}`)
+    else if (migrating) {
+      console.log(`migration request while migration request in progress for ${orgURL}`)
+      busyCallback()
+    } else
+      migrateOrgPermissionsFromEdge(req, res, orgName, orgURL, issuer, clientToken, migrationRecord)
+  })  
+}
+
+function withClientCredentialsDo(req, res, callback) {
   // build up a new request object with the client credentials used for getting user UUIDs from their emails
+  var requestUser = lib.getUser(req.headers.authorization)
+  var issuer = requestUser.split('#')[0]  
   var clientAuthEncoded = new Buffer(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64')
   var tokenReq = {}
   tokenReq.headers = {}
@@ -77,7 +97,7 @@ function withClientCredentialsDo(res, issuer, callback) {
       clientRes.on('data', function (d) {body += d})
       clientRes.on('end', function () {
         var clientToken = JSON.parse(body).access_token
-        callback(clientToken)  
+        callback(issuer, clientToken)  
       })
     }
   })
@@ -121,110 +141,112 @@ function buildTeam(orgName, orgURL, edgeRoleName, edgeRole, emailToPermissionsUs
   return team
 }
 
-function migrateOrgPermissionsFromEdge(req, res, orgName, orgURL, migrationRecord) {
+function migrateOrgPermissionsFromEdge(req, res, orgName, orgURL, issuer, clientToken, migrationRecord) {
   var existingTeams = migrationRecord.teams
-  var requestUser = lib.getUser(req.headers.authorization)
-  var issuer = requestUser.split('#')[0]
-  withClientCredentialsDo(res, issuer, function(clientToken) { 
-    var fakeReq = {headers:{authorization: `Bearer ${clientToken}`}}
-    getRoleDetailsFromEdge(fakeReq, res, orgName, function (edgeRolesAndPermissions) {
-      // the org exists, create initial permissions document
-      withEdgeUserUUIDsDo(res, issuer, clientToken, edgeRolesAndPermissions, function(ssoUsers) {
-        var emailToPermissionsUserMapping = {}
-        for (var j = 0; j < ssoUsers.length; j++) {
-          emailToPermissionsUserMapping[ssoUsers[j].email] = issuer + '#' + ssoUsers[j].id
+  getRoleDetailsFromEdge(req, res, orgName, function (edgeRolesAndPermissions) {
+    // the org exists, create initial permissions document
+    withEdgeUserUUIDsDo(res, issuer, clientToken, edgeRolesAndPermissions, function(ssoUsers) {
+      var emailToPermissionsUserMapping = {}
+      for (var j = 0; j < ssoUsers.length; j++) {
+        emailToPermissionsUserMapping[ssoUsers[j].email] = issuer + '#' + ssoUsers[j].id
+      }
+      var CLIENT_ID = lib.getUserFromToken(clientToken)
+      var totalNumberOfRoles = Object.keys(edgeRolesAndPermissions).length
+      var rolesProcessed = 0
+      var orgPermission = templates.orgPermission(orgName, orgURL, CLIENT_ID)
+
+      // main loop creating teams. permissions resource for org is created when the last team has been created.
+      var teams = {}
+      for (let edgeRoleName in edgeRolesAndPermissions) {
+        var headers = {
+          'accept': 'application/json',
+          'content-type': 'application/json',
+          'authorization': `Bearer ${clientToken}`
         }
-        var CLIENT_ID = lib.getUserFromToken(clientToken)
-        var totalNumberOfRoles = Object.keys(edgeRolesAndPermissions).length
-        var rolesProcessed = 0
-        var orgPermission = templates.orgPermission(orgName, orgURL, CLIENT_ID)
-
-        // main loop creating teams. permissions resource for org is created when the last team has been created.
-        var teams = {}
-        for (let edgeRoleName in edgeRolesAndPermissions) {
-          var headers = {
-            'accept': 'application/json',
-            'content-type': 'application/json',
-            'authorization': `Bearer ${clientToken}`
-          }
-          var team = buildTeam(orgName, orgURL, edgeRoleName, edgeRolesAndPermissions[edgeRoleName], emailToPermissionsUserMapping)
-          if (edgeRoleName in existingTeams)
-            lib.sendInternalRequestThen(req, res, existingTeams[edgeRoleName], 'PUT', JSON.stringify(team), headers, (clientRes) => processRole(clientRes, edgeRoleName))
-          else
-            lib.sendInternalRequestThen(req, res, '/teams', 'POST', JSON.stringify(team), headers, (clientRes) => processRole(clientRes, edgeRoleName))
-        }
-        function processRole(clientRes, edgeRoleName) {
-          rolesProcessed++
-          var body = ''
-          clientRes.on('data', function (d) {body += d})
-          clientRes.on('end', function () {
-            if (clientRes.statusCode == 201 || clientRes.statusCode == 200) {
-              teams[edgeRoleName] = clientRes.headers.location
-              body = JSON.parse(body)
-              var teamLocation = clientRes.headers['location']
-              if (body.name.indexOf('orgadmin') !== -1) {
-                // add permissions to modify the org's permission document
-                orgPermission._permissions.read.push(teamLocation)
-
-                // add permissions for the org resource
-                orgPermission._self.read.push(teamLocation)
-
-                // add permissions heirs
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-                orgPermission._permissionsHeirs.add.push(teamLocation)
-                orgPermission._permissionsHeirs.remove.push(teamLocation)
-
-                // add shipyard permissions
-                orgPermission.shipyardEnvironments.create = []
-                orgPermission.shipyardEnvironments.create.push(teamLocation)
-
-                orgPermission.shipyardEnvironments.read = []
-                orgPermission.shipyardEnvironments.read.push(teamLocation)
-
-              } else if (body.name.indexOf('opsadmin') !== -1) {
-                orgPermission._self.read.push(teamLocation)
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-                orgPermission._permissionsHeirs.add.push(teamLocation)
-
-              } else if (body.name.indexOf('businessuser') !== -1) {
-                orgPermission._self.read.push(teamLocation)
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-                orgPermission._permissionsHeirs.add.push(teamLocation)
-
-              } else if (body.name.indexOf('user') !== -1) {
-                orgPermission._self.read.push(teamLocation)
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-                orgPermission._permissionsHeirs.add.push(teamLocation)
-
-              } else if (body.name.indexOf('readonlyadmin') !== -1) {
-                orgPermission._permissions.read.push(teamLocation)
-
-                // add permissions for the org resource
-                orgPermission._self.read.push(teamLocation)
-
-                // add permissions heirs
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-
-              } else {
-                // not a standard Edge role, just add read permissions for the org for now
-                orgPermission._self.read.push(teamLocation)
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-                orgPermission._permissionsHeirs.add.push(teamLocation)
-
-              }
-            } else
-              console.log(`unable to create team. orgName: ${orgName} role: ${edgeRoleName} stauts: ${clientRes.statusCode} body ${body}`)
-
-            // now create the permissions for the org after looping through all the roles(teams)
-            if (rolesProcessed === totalNumberOfRoles) {
-              pLib.createPermissionsThen(req, res, orgPermission._subject, orgPermission, function (err, permissionsURL, permissions, responseHeaders) {
-                db.writeMigrationRecord(orgPermission._subject, {teams: teams})          
-                lib.found(req, res, permissions, responseHeaders.etag)
+        var team = buildTeam(orgName, orgURL, edgeRoleName, edgeRolesAndPermissions[edgeRoleName], emailToPermissionsUserMapping)
+        if (edgeRoleName in existingTeams)
+          lib.sendInternalRequestThen(req, res, existingTeams[edgeRoleName], 'PUT', JSON.stringify(team), headers, function (clientRes) { 
+            if (clientRes.statusCode == 404) { // we had a team but its gone
+              clientRes.on('end', function () {
+                lib.sendInternalRequestThen(req, res, '/teams', 'POST', JSON.stringify(team), headers, function (clientRes) {processRole(clientRes, edgeRoleName)})
               })
-            }
+            } else
+              processRole(clientRes, edgeRoleName)
           })
-        }        
-      })
+        else
+          lib.sendInternalRequestThen(req, res, '/teams', 'POST', JSON.stringify(team), headers, function (clientRes) {processRole(clientRes, edgeRoleName)})
+      }
+      function processRole(clientRes, edgeRoleName) {
+        rolesProcessed++
+        var body = ''
+        clientRes.on('data', function (d) {body += d})
+        clientRes.on('end', function () {
+          if (clientRes.statusCode == 201 || clientRes.statusCode == 200) {
+            teams[edgeRoleName] = clientRes.headers.location
+            body = JSON.parse(body)
+            var teamLocation = clientRes.headers['location']
+            if (body.name.indexOf('orgadmin') !== -1) {
+              // add permissions to modify the org's permission document
+              orgPermission._permissions.read.push(teamLocation)
+
+              // add permissions for the org resource
+              orgPermission._self.read.push(teamLocation)
+
+              // add permissions heirs
+              orgPermission._permissionsHeirs.read.push(teamLocation)
+              orgPermission._permissionsHeirs.add.push(teamLocation)
+              orgPermission._permissionsHeirs.remove.push(teamLocation)
+
+              // add shipyard permissions
+              orgPermission.shipyardEnvironments.create = []
+              orgPermission.shipyardEnvironments.create.push(teamLocation)
+
+              orgPermission.shipyardEnvironments.read = []
+              orgPermission.shipyardEnvironments.read.push(teamLocation)
+
+            } else if (body.name.indexOf('opsadmin') !== -1) {
+              orgPermission._self.read.push(teamLocation)
+              orgPermission._permissionsHeirs.read.push(teamLocation)
+              orgPermission._permissionsHeirs.add.push(teamLocation)
+
+            } else if (body.name.indexOf('businessuser') !== -1) {
+              orgPermission._self.read.push(teamLocation)
+              orgPermission._permissionsHeirs.read.push(teamLocation)
+              orgPermission._permissionsHeirs.add.push(teamLocation)
+
+            } else if (body.name.indexOf('user') !== -1) {
+              orgPermission._self.read.push(teamLocation)
+              orgPermission._permissionsHeirs.read.push(teamLocation)
+              orgPermission._permissionsHeirs.add.push(teamLocation)
+
+            } else if (body.name.indexOf('readonlyadmin') !== -1) {
+              orgPermission._permissions.read.push(teamLocation)
+
+              // add permissions for the org resource
+              orgPermission._self.read.push(teamLocation)
+
+              // add permissions heirs
+              orgPermission._permissionsHeirs.read.push(teamLocation)
+
+            } else {
+              // not a standard Edge role, just add read permissions for the org for now
+              orgPermission._self.read.push(teamLocation)
+              orgPermission._permissionsHeirs.read.push(teamLocation)
+              orgPermission._permissionsHeirs.add.push(teamLocation)
+
+            }
+          } else
+            console.log(`unable to create team. orgName: ${orgName} role: ${edgeRoleName} stauts: ${clientRes.statusCode} body ${body}`)
+
+          // now create the permissions for the org after looping through all the roles(teams)
+          if (rolesProcessed === totalNumberOfRoles) {
+            pLib.createPermissionsThen(req, res, orgPermission._subject, orgPermission, function (err, permissionsURL, permissions, responseHeaders) {
+              db.writeMigrationRecord(orgPermission._subject, {teams: teams})          
+              lib.found(req, res, permissions, responseHeaders.etag)
+            })
+          }
+        })
+      }        
     })
   })
 }
@@ -286,7 +308,7 @@ function getRolePermissionsFromEdge(req, res, orgName, role, callback) {
 function requestHandler(req, res) {
   if (req.url.startsWith('/permissions-migration/migration-request')) {
     if (req.method == 'POST')
-      lib.getServerPostObject(req, res, (x) => resourceHandler(req, res, x))
+      lib.getServerPostObject(req, res, (x) => handleMigrationRequest(req, res, x))
     else
       lib.methodNotAllowed(req, res, ['POST'])
   }
