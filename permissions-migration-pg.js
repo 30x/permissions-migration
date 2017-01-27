@@ -10,14 +10,43 @@ var config = {
 
 var pool = new Pool(config);
 
-function recordMigration(orgURL, data) {
+function writeMigrationRecord(orgURL, data) {
   var time = Date.now()
-  var query = `INSERT INTO migrations (orgURL, migrating, migrationtime, data) values ('${orgURL}', FALSE, ${time}, '${JSON.stringify(data)}') ON CONFLICT (orgURL) DO UPDATE SET data = EXCLUDED.data, migrating = EXCLUDED.migrating, migrationtime = EXCLUDED.migrationtime`
+  var query = `UPDATE migrations SET (orgURL, migrating, migrationtime, data) = ('${orgURL}', FALSE, ${time}, '${JSON.stringify(data)}')`
   pool.query(query, function (err, pgResult) {
     if (err) 
       console.log(`unable to write migration record for ${orgURL} err: ${err}`)
     else
       console.log(`wrote migration record for ${orgURL} at time ${time}`)
+  });
+}
+
+function readMigrationRecord(orgURL, callback) {
+  var time = Date.now()
+  var query = `SELECT * from migrations WHERE orgURL = '${orgURL}'`
+  pool.query(query, function (err, pgResult) {
+    if (err) 
+      console.log(`unable to write migration record for ${orgURL} err: ${err}`)
+    else
+      console.log(`wrote migration record for ${orgURL} at time ${time}`)
+  });
+}
+
+function setMigratingFlag(orgURL, callback) {
+  var time = Date.now()
+  var newRecord = {teams:{}}
+  var query = `INSERT INTO migrations (orgURL, migrating, data) values ('${orgURL}', TRUE, '${JSON.stringify(newRecord)}') ON CONFLICT (orgURL) DO UPDATE SET migrating = EXCLUDED.migrating WHERE migrations.migrating = FALSE RETURNING data`
+  pool.query(query, function (err, pgResult) {
+    if (err) {
+      console.log(`unable to write migration flag for ${orgURL} err: ${err}`)
+      callback(err)
+    } else {
+      console.log(`wrote migration flag for ${orgURL} at time ${time}`)
+      if (pgResult.rowCount == 0)
+        callback(null, true)
+      else
+        callback(null, false, pgResult.rows[0].data)
+    }
   });
 }
 
@@ -41,4 +70,6 @@ function init(callback) {
 }
 
 exports.init = init
-exports.recordMigration = recordMigration
+exports.writeMigrationRecord = writeMigrationRecord
+exports.readMigrationRecord = readMigrationRecord
+exports.setMigratingFlag = setMigratingFlag

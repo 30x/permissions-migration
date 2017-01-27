@@ -1,6 +1,6 @@
-exports.orgPermission = function(baseLocation, org, user){
+exports.orgPermission = function(org, orgURL, user){
   return {
-    _subject: baseLocation+'/v1/o/'+org,
+    _subject: orgURL,
     _self: {
       read: [user],
       update: [user],
@@ -115,11 +115,11 @@ exports.stdPermission = function(subject, inherits){
   }
 }
 
-exports.team = function(baseLocation, org, teamName, members) {
+exports.team = function(orgName, orgURL, teamName, members) {
   return {
     isA: 'Team',
-    name: org + ' '+teamName,
-    permissions: {_inheritsPermissionsOf: [baseLocation+'/v1/o/'+org]},
+    name: orgName + ' '+teamName,
+    permissions: {_inheritsPermissionsOf: [orgURL]},
     members: members,
   }
 }
