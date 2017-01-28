@@ -34,7 +34,7 @@ function readMigrationRecord(orgURL, callback) {
 
 function setMigratingFlag(orgURL, callback) {
   var time = Date.now()
-  var newRecord = {teams:{}}
+  var newRecord = {teams:{}, initialMigration: true}
   var query = `INSERT INTO migrations (orgURL, migrating, data) values ('${orgURL}', TRUE, '${JSON.stringify(newRecord)}') ON CONFLICT (orgURL) DO UPDATE SET migrating = EXCLUDED.migrating WHERE migrations.migrating = FALSE RETURNING data`
   pool.query(query, function (err, pgResult) {
     if (err) {

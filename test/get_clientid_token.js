@@ -28,7 +28,7 @@ var clientReq = https.request(options, function (client_res) {
       console.log(rslt.access_token)
       process.exit(0)
     } else {
-      console.log(`unable to send event to: ${host} statusCode: ${client_res.statusCode}`)
+      console.log(`unable to send event to: ${process.env.hostname} statusCode: ${client_res.statusCode}`)
       process.exit(-1)
     }
   })

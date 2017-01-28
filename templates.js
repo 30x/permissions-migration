@@ -9,6 +9,7 @@ exports.orgPermission = function(org, orgURL, user){
     _permissions: {
       read: [user],
       update: [user],
+      put: [user],
       delete:[user]
     },
     _permissionsHeirs:{
@@ -119,7 +120,7 @@ exports.team = function(orgName, orgURL, teamName, members) {
   return {
     isA: 'Team',
     name: orgName + ' '+teamName,
-    permissions: {_inheritsPermissionsOf: [orgURL]},
+    _permissions: {_inheritsPermissionsOf: [orgURL]},
     members: members,
   }
 }
