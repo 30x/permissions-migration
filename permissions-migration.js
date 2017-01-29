@@ -215,7 +215,7 @@ function migrateOrgPermissionsFromEdge(req, res, orgName, orgURL, issuer, client
             var teamLocation = clientRes.headers['location']
             if (body.name.indexOf('orgadmin') !== -1) {
               // add permissions to modify the org's permission document
-              orgPermission._permissions.read.push(teamLocation)
+              orgPermission._self.govern.push(teamLocation)
 
               // add permissions for the org resource
               orgPermission._self.read.push(teamLocation)

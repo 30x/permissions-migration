@@ -30,7 +30,7 @@ def main():
         print 'failed to get permissions of edge org status: %s text: %s' % (r.status_code, r.text)
         return
 
-    abs_org_admins = urljoin(BASE_URL, org_permissions['_permissions']['update'][0])
+    abs_org_admins = urljoin(BASE_URL, org_permissions['_self']['govern'][0])
     for team_url in org_permissions['_metadata']['sharedWith']:
         abs_team_url = urljoin(BASE_URL, team_url)
         r = requests.delete(abs_team_url, headers=headers)

@@ -4,13 +4,9 @@ exports.orgPermission = function(org, orgURL, user){
     _self: {
       read: [user],
       update: [user],
-      delete: [user]
-    },
-    _permissions: {
-      read: [user],
-      update: [user],
-      put: [user],
-      delete:[user]
+      delete: [user],
+      admin: [user],
+      govern: [user]
     },
     _permissionsHeirs:{
       add: [user],
@@ -48,17 +44,14 @@ exports.envPermission = function(baseLocation, org) {
     _self: {
       read: [],
       update: [],
-      delete: []
-    },
-    _permissions: {
-      read: [],
-      update: []
+      delete: [],
+      admin: [],
+      govern: []
     },
     _permissionsHeirs: {
       add: [],
       read: [],
       remove: []
-
     },
     apis: {},
     resourcefiles: {},
@@ -79,17 +72,14 @@ exports.shipyardEnvPermission = function(baseLocation, org) {
     _self: {
       read: [],
       update: [],
-      delete: []
-    },
-    _permissions: {
-      read: [],
-      update: []
+      delete: [],
+      admin: [],
+      govern: []
     },
     _permissionsHeirs: {
       add: [],
       read: [],
       remove: []
-
     },
     apis: {},
     resourcefiles: {},
