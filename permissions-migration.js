@@ -45,11 +45,16 @@ function handleMigrationRequest(req, res, body){
 
 function handleReMigrationRequest(req, res, body){ 
   withClientCredentialsDo(req.headers.authorization, function(err, issuer, clientToken) { 
-    handleErr(req, res, err, function() {
-      verifyMigrationRequest(body, function(orgName, orgURL) {
-        handleErr(req, res, err, function() {
-          performMigration(orgName, orgURL, issuer, clientToken, function(err) {
-            lib.badRequest(res, `migration in progress for org: ${orgURL}`)
+    handleErr(req, res, err, issuer, function() {
+      verifyMigrationRequest(body, function(err, orgName, orgURL) {
+        handleErr(req, res, err, orgName, function() {
+          performMigration(orgName, orgURL, issuer, clientToken, function(err, param) {
+            if (err == 'busy')
+              lib.badRequest(res, `migration in progress for org: ${orgURL}`)
+            else  
+              handleErr(req, res, err, orgName, function() {
+                lib.found(req, res)              
+              })
           })
         })
       })
