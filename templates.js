@@ -4,6 +4,7 @@ exports.orgPermission = function(org, orgURL, user){
     _self: {
       read: [user],
       update: [user],
+      put: [user],
       delete: [user],
       admin: [user],
       govern: [user]
