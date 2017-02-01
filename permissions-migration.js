@@ -3,6 +3,7 @@ const http = require('http')
 const https = require('https')
 const url = require('url')
 const lib = require('http-helper-functions')
+const rLib = require('response-helper-functions')
 const templates = require('./templates.js')
 const pLib = require('permissions-helper-functions')
 const db = require('./permissions-migration-pg.js')
@@ -14,15 +15,15 @@ const CLIENT_SECRET = process.env.PERMISSIONS_MIGRATION_CLIENTSECRET
 
 function handleErr(req, res, err, param, callback) {
   if (err == 404) 
-    lib.notFound(req, res)
+    rLib.notFound(res, `//${req.headers.host}${req.url} not found`)
   else if (err == 400)
-    lib.badRequest(res, param)
+    rLib.badRequest(res, param)
   else if (err == 409)
-    lib.respond(req, res, 409, {}, {statusCode:409, msg: param})
+    lib.duplicate(res, param)
   else if (err == 500)
-    lib.internalError(res, param)
+    rLib.internalError(res, param)
   else if (err)
-    lib.internalError(res, err)
+    rLib.internalError(res, err)
   else 
     callback()
 }
@@ -34,7 +35,7 @@ function handleMigrationRequest(req, res, body){
         handleErr(req, res, err, orgName, function() {
           attemptMigration(clientToken, orgName, orgURL, issuer, clientToken, function(err, param) {
             handleErr(req, res, err, param, function() {
-              lib.found(req, res)
+              rLib.ok(res)
             })
           })
         })
@@ -50,10 +51,10 @@ function handleReMigrationRequest(req, res, body){
         handleErr(req, res, err, orgName, function() {
           performMigration(orgName, orgURL, issuer, clientToken, function(err, param) {
             if (err == 'busy')
-              lib.badRequest(res, `migration in progress for org: ${orgURL}`)
+              rLib.badRequest(res, `migration in progress for org: ${orgURL}`)
             else  
               handleErr(req, res, err, orgName, function() {
-                lib.found(req, res)              
+                rLib.ok(res)              
               })
           })
         })
@@ -439,14 +440,14 @@ function requestHandler(req, res) {
     if (req.method == 'POST')
       lib.getServerPostObject(req, res, (x) => handleMigrationRequest(req, res, x))
     else
-      lib.methodNotAllowed(req, res, ['POST'])
+      rLib.methodNotAllowed(res, ['POST'])
   else if (req.url.startsWith('/permissions-migration/re-migration-request'))
     if (req.method == 'POST')
       lib.getServerPostObject(req, res, (x) => handleReMigrationRequest(req, res, x))
     else
-      lib.methodNotAllowed(req, res, ['POST'])
+      rLib.methodNotAllowed(res, ['POST'])
   else
-    lib.notFound(req, res)
+    rLib.notFound(res, `//${req.headers.host}${req.url} not found`)
 }
 
 function ifAuditShowsChange(orgName, lastMigrationTime, callback) {
