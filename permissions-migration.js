@@ -88,7 +88,7 @@ function attemptMigration (auth, orgName, orgURL, issuer, clientToken, callback)
   var retryCount = 0;
   function seeIfMigrationNeeded () {
     // check to see if permissions already exist first
-    lib.sendInternalRequest({}, `/permissions?${orgURL}`, 'GET', null, {authorization: `Bearer ${clientToken}`}, function(err, clientRes){
+    lib.sendInternalRequest('GET', `/permissions?${orgURL}`, {authorization: `Bearer ${clientToken}`}, null, function(err, clientRes){
       if (err)
         callback(500, `unable to GET permissions: /permissions?${orgURL} err: ${err}`)
       else if (clientRes.statusCode == 200)
@@ -208,7 +208,7 @@ function migrateOrgPermissionsFromEdge(orgName, orgURL, issuer, clientToken, mig
           var CLIENT_ID = lib.getUserFromToken(clientToken)
           var orgPermission = templates.orgPermission(orgName, orgURL, CLIENT_ID)
           if (migrationRecord.initialMigration) // permissions-migration-pg.js sets initialMigration
-            lib.sendInternalRequest({}, '/permissions', 'POST', JSON.stringify(orgPermission), headers, function (err, clientRes) { 
+            lib.sendInternalRequest('POST','/permissions', headers, JSON.stringify(orgPermission), function (err, clientRes) { 
               lib.getClientResponseBody(clientRes, function(data) {
                 if (err || clientRes.statusCode != 201) {
                   db.writeMigrationRecord(orgPermission._subject, {orgName: orgName, teams: teams})          
@@ -229,10 +229,10 @@ function migrateOrgPermissionsFromEdge(orgName, orgURL, issuer, clientToken, mig
           for (let edgeRoleName in edgeRolesAndPermissions) {
             var team = buildTeam(orgName, orgURL, edgeRoleName, edgeRolesAndPermissions[edgeRoleName], emailToPermissionsUserMapping)
             if (edgeRoleName in existingTeams)
-              lib.sendInternalRequest({}, existingTeams[edgeRoleName], 'PUT', JSON.stringify(team), headers, function (err, clientRes) { 
+              lib.sendInternalRequest('PUT', existingTeams[edgeRoleName], headers, JSON.stringify(team), function (err, clientRes) { 
                 lib.getClientResponseBody(clientRes, function (body) {
                   if (clientRes.statusCode == 404) { // we had a team but its gone
-                    lib.sendInternalRequest({}, '/teams', 'POST', JSON.stringify(team), headers, function (err, clientRes) {
+                    lib.sendInternalRequest('POST', '/teams', headers, JSON.stringify(team), function (err, clientRes) {
                       if (err)
                         callback(err, clientRes)
                       else
@@ -245,7 +245,7 @@ function migrateOrgPermissionsFromEdge(orgName, orgURL, issuer, clientToken, mig
                 })
               })
             else
-              lib.sendInternalRequest({}, '/teams', 'POST', JSON.stringify(team), headers, function (err, clientRes) {
+              lib.sendInternalRequest('POST', '/teams', headers, JSON.stringify(team), function (err, clientRes) {
                 if (err)
                   callback(er, clientRes)
                 else
@@ -313,7 +313,7 @@ function migrateOrgPermissionsFromEdge(orgName, orgURL, issuer, clientToken, mig
 
             // now create the permissions for the org after looping through all the roles(teams)
             if (rolesProcessed === totalNumberOfRoles) {
-              lib.sendInternalRequest({}, `/permissions?${orgURL}`, 'PUT', JSON.stringify(orgPermission), headers, function (err, clientRes) {
+              lib.sendInternalRequest('PUT', `/permissions?${orgURL}`, headers, JSON.stringify(orgPermission), function (err, clientRes) {
                 if (err)
                   callback(err, clientRes)
                 else 
