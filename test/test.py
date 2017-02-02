@@ -29,7 +29,7 @@ def main():
     headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
     r = requests.post(permissions_migration_url, headers=headers, json=migration_request)
     if r.status_code == 200:
-        print 'correctly migrated edge org %s' % (r.headers['content-location'])
+        print 'correctly migrated edge org'
     else:
         print 'failed to migrate edge org for resource %s %s %s' % (migration_request['resource'], r.status_code, r.text)
         return

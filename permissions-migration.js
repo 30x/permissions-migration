@@ -212,7 +212,6 @@ function migrateOrgPermissionsFromEdge(orgName, orgURL, issuer, clientToken, mig
             lib.sendInternalRequest('POST','/permissions', headers, JSON.stringify(orgPermission), function (err, clientRes) { 
               lib.getClientResponseBody(clientRes, function(data) {
                 if (err || clientRes.statusCode != 201) {
-                  db.writeMigrationRecord(orgPermission._subject, {orgName: orgName, teams: teams})          
                   callback(err, `unable to create permissions for org. statuscode: ${err}`)                
                 } else
                   makeTeams()
@@ -262,53 +261,7 @@ function migrateOrgPermissionsFromEdge(orgName, orgURL, issuer, clientToken, mig
               teams[edgeRoleName] = clientRes.headers.location
               body = JSON.parse(body)
               var teamLocation = clientRes.headers['location']
-              if (body.name.indexOf('orgadmin') !== -1) {
-                // add permissions for the org resource
-                orgPermission._self.read.push(teamLocation)
-
-                // add permissions heirs
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-                orgPermission._permissionsHeirs.add.push(teamLocation)
-                orgPermission._permissionsHeirs.remove.push(teamLocation)
-
-                // add shipyard permissions
-                orgPermission.shipyardEnvironments.create = []
-                orgPermission.shipyardEnvironments.create.push(teamLocation)
-
-                orgPermission.shipyardEnvironments.read = []
-                orgPermission.shipyardEnvironments.read.push(teamLocation)
-
-              } else if (body.name.indexOf('opsadmin') !== -1) {
-                orgPermission._self.read.push(teamLocation)
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-                orgPermission._permissionsHeirs.add.push(teamLocation)
-
-              } else if (body.name.indexOf('businessuser') !== -1) {
-                orgPermission._self.read.push(teamLocation)
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-                orgPermission._permissionsHeirs.add.push(teamLocation)
-
-              } else if (body.name.indexOf('user') !== -1) {
-                orgPermission._self.read.push(teamLocation)
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-                orgPermission._permissionsHeirs.add.push(teamLocation)
-
-              } else if (body.name.indexOf('readonlyadmin') !== -1) {
-                orgPermission._permissions.read.push(teamLocation)
-
-                // add permissions for the org resource
-                orgPermission._self.read.push(teamLocation)
-
-                // add permissions heirs
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-
-              } else {
-                // not a standard Edge role, just add read permissions for the org for now
-                orgPermission._self.read.push(teamLocation)
-                orgPermission._permissionsHeirs.read.push(teamLocation)
-                orgPermission._permissionsHeirs.add.push(teamLocation)
-
-              }
+              updateOrgPermissons(orgPermission, body.name, teamLocation)
             } else
               console.log(`unable to ${replacedWithPut ? 'update' : 'create'} team. orgName: ${orgName} role: ${edgeRoleName} stauts: ${clientRes.statusCode} body ${body}`)
 
@@ -328,9 +281,58 @@ function migrateOrgPermissionsFromEdge(orgName, orgURL, issuer, clientToken, mig
               })
             }
           }    
-        }    
+        }
       })
   })
+}
+
+function updateOrgPermissons(orgPermission, roleNames, teamLocation) {
+  if (roleNames.indexOf('orgadmin') !== -1) {
+    // add permissions for the org resource
+    orgPermission._self.read.push(teamLocation)
+
+    // add permissions heirs
+    orgPermission._permissionsHeirs.read.push(teamLocation)
+    orgPermission._permissionsHeirs.add.push(teamLocation)
+    orgPermission._permissionsHeirs.remove.push(teamLocation)
+
+    // add shipyard permissions
+    orgPermission.shipyardEnvironments.create = []
+    orgPermission.shipyardEnvironments.create.push(teamLocation)
+
+    orgPermission.shipyardEnvironments.read = []
+    orgPermission.shipyardEnvironments.read.push(teamLocation)
+
+  } else if (roleNames.indexOf('opsadmin') !== -1) {
+    orgPermission._self.read.push(teamLocation)
+    orgPermission._permissionsHeirs.read.push(teamLocation)
+    orgPermission._permissionsHeirs.add.push(teamLocation)
+
+  } else if (roleNames.indexOf('businessuser') !== -1) {
+    orgPermission._self.read.push(teamLocation)
+    orgPermission._permissionsHeirs.read.push(teamLocation)
+    orgPermission._permissionsHeirs.add.push(teamLocation)
+
+  } else if (roleNames.indexOf('user') !== -1) {
+    orgPermission._self.read.push(teamLocation)
+    orgPermission._permissionsHeirs.read.push(teamLocation)
+    orgPermission._permissionsHeirs.add.push(teamLocation)
+
+  } else if (roleNames.indexOf('readonlyadmin') !== -1) {
+    orgPermission._permissions.read.push(teamLocation)
+
+    // add permissions for the org resource
+    orgPermission._self.read.push(teamLocation)
+
+    // add permissions heirs
+    orgPermission._permissionsHeirs.read.push(teamLocation)
+
+  } else {
+    // not a standard Edge role, just add read permissions for the org for now
+    orgPermission._self.read.push(teamLocation)
+    orgPermission._permissionsHeirs.read.push(teamLocation)
+    orgPermission._permissionsHeirs.add.push(teamLocation)
+  }
 }
 
 function getRoleDetailsFromEdge(callHeaders, orgName, callback) {
