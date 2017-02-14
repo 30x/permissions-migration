@@ -30,11 +30,11 @@ function handleMigrationRequest(req, res, body){
 }
 
 function handleReMigration(res, issuer, body){ 
-  withClientCredentialsDo(res, function(clientToken) { 
+  withClientCredentialsDo(res, issuer, function(clientToken) { 
     verifyMigrationRequest(res, body, function(orgName, orgURL) {
-      performMigration(orgName, orgURL, issuer, clientToken, function(migrating, param) {
+      performMigration(res, orgName, orgURL, issuer, clientToken, function() {
         rLib.ok(res)              
-      }, function(migrating, param) {
+      }, function() {
         rLib.badRequest(res, {msg: `migration in progress for org: ${orgURL}`})
       })
     })
@@ -220,7 +220,7 @@ function migrateOrgPermissionsFromEdge(res, orgName, orgURL, issuer, clientToken
         function addRoleToOrg(clientRes, edgeRoleName, body, replacedWithPut) {
           rolesProcessed++
           if (clientRes.statusCode == 201 || clientRes.statusCode == 200) {
-            teams[edgeRoleName] = clientRes.headers.location
+            teams[edgeRoleName] = clientRes.statusCode == 201 ? clientRes.headers.location : clientRes.headers['content-location']
             body = JSON.parse(body)
             var teamLocation = clientRes.headers['location']
             updateOrgPermissons(orgPermission, body.name, teamLocation)
