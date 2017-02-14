@@ -18,7 +18,9 @@ const REMIGRATION_INTERVAL = 5 * 60 * 1000    // every 5 minutes
 const SPEEDUP = process.env.SPEEDUP || 1
 
 function handleMigrationRequest(req, res, body){
-  withClientCredentialsDo(res, req.headers.authorization, function(issuer, clientToken) {
+  var requestUser = lib.getUser(req.headers.authorization)
+  var issuer = requestUser.split('#')[0]  
+  withClientCredentialsDo(res, issuer, function(clientToken) {
     verifyMigrationRequest(res, body, function(orgName, orgURL) {
       attemptMigration(res, clientToken, orgName, orgURL, issuer, clientToken, function(param) {
         rLib.ok(res)
@@ -27,8 +29,8 @@ function handleMigrationRequest(req, res, body){
   })
 }
 
-function handleReMigrationRequest(req, res, body){ 
-  withClientCredentialsDo(res, req.headers.authorization, function(issuer, clientToken) { 
+function handleReMigration(res, issuer, body){ 
+  withClientCredentialsDo(res, function(clientToken) { 
     verifyMigrationRequest(res, body, function(orgName, orgURL) {
       performMigration(orgName, orgURL, issuer, clientToken, function(migrating, param) {
         rLib.ok(res)              
@@ -37,6 +39,12 @@ function handleReMigrationRequest(req, res, body){
       })
     })
   })
+}
+
+function handleReMigrationRequest(req, res, body){ 
+  var requestUser = lib.getUser(req.headers.authorization)
+  var issuer = requestUser.split('#')[0]  
+  handleReMigration(res, issuer, body)
 }
 
 function verifyMigrationRequest(res, body, callback) {
@@ -100,10 +108,8 @@ function performMigration(res, orgName, orgURL, issuer, clientToken, callback, b
   })  
 }
 
-function withClientCredentialsDo(res, auth, callback) {
+function withClientCredentialsDo(res, issuer, callback) {
   // build up a new request object with the client credentials used for getting user UUIDs from their emails
-  var requestUser = lib.getUser(auth)
-  var issuer = requestUser.split('#')[0]  
   var clientAuthEncoded = new Buffer(CLIENT_ID + ':' + CLIENT_SECRET).toString('base64')
   var tokenHeaders = {}
   tokenHeaders['authorization'] = 'Basic ' + clientAuthEncoded
@@ -114,7 +120,7 @@ function withClientCredentialsDo(res, auth, callback) {
     lib.getClientResponseBody(clientRes, function (body) {
       if (clientRes.statusCode == 200) {
         var clientToken = JSON.parse(body).access_token
-        callback(issuer, clientToken)
+        callback(clientToken)
       } else
         rLib.internalError(res, {msg: 'unable to authenticate with IDs service to perform migration', statusCode: clientRes.statusCode})
     })
@@ -224,7 +230,7 @@ function migrateOrgPermissionsFromEdge(res, orgName, orgURL, issuer, clientToken
           // now create the permissions for the org after looping through all the roles(teams)
           if (rolesProcessed === totalNumberOfRoles) {
             lib.sendInternalRequestThen(res, 'PUT', `/permissions?${orgURL}`, headers, JSON.stringify(orgPermission), function (clientRes) {
-              db.writeMigrationRecord(orgPermission._subject, {orgName: orgName, teams: teams})   
+              db.writeMigrationRecord(orgPermission._subject, {orgName: orgName, teams: teams, issuer: issuer})   
               lib.getClientResponseBody(clientRes, function(body) {
                 if (clientRes.statusCode == 200)
                   callback()
@@ -397,11 +403,12 @@ function remigrateOnSchedule() {
   db.getMigrationsOlderThan(now - (REMIGRATION_INTERVAL / SPEEDUP), function(migrations) {
     for (let i=0; i<migrations.length; i++) {
       var migration = migrations[i]
-      var orgURL = migration.orgURL
+      var orgurl = migration.orgurl
       var orgName = migration.data.orgName
+      var issuer = migration.data.issuer
       var lastMigrationTime = migration.startTime
       ifAuditShowsChange(orgName, lastMigrationTime, function() {
-
+        console.log('scheduled remigration', 'orgurl', orgurl, 'orgName', orgName, 'issuer', issuer)
       })
     }
   })
@@ -413,6 +420,7 @@ function start() {
     http.createServer(requestHandler).listen(port, function () {
       console.log(`server is listening on ${port}`)
     })
+    setInterval(remigrateOnSchedule, REMIGRATION_CHECK_INTERVAL / SPEEDUP)
   })
 }
 
