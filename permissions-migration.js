@@ -12,10 +12,15 @@ const CONFIGURED_EDGE_ADDRESS = process.env.EDGE_ADDRESS // something of the for
 const CONFIGURED_EDGE_HOST = CONFIGURED_EDGE_ADDRESS.split(':')[1].replace('//', '') // // something of the form api.e2e.apigee.net or api.enterprise.apigee.net
 const CLIENT_ID = process.env.PERMISSIONS_MIGRATION_CLIENTID
 const CLIENT_SECRET = process.env.PERMISSIONS_MIGRATION_CLIENTSECRET
+const COMPONENT_NAME = 'permissions-migration'
 
 const REMIGRATION_CHECK_INTERVAL = 60 * 1000  // every minute
 const REMIGRATION_INTERVAL = 5 * 60 * 1000    // every 5 minutes 
 const SPEEDUP = process.env.SPEEDUP || 1
+
+function log(functionName, text) {
+  console.log(Date.now(), COMPONENT_NAME, functionName, text)
+}
 
 function handleMigrationRequest(req, res, body){
   var requestUser = lib.getUser(req.headers.authorization)
@@ -101,7 +106,7 @@ function performMigration(res, orgName, orgURL, issuer, clientToken, callback, b
     if (err)
       rLib.internalError(res, {msg: 'unable to set migrating flag', err: err})
     else if (migrating) {
-      console.log(`migration request while migration request in progress for ${orgURL}`)
+      log('performMigration' ,`migration request while migration request in progress for ${orgURL}`)
       busyCallback()
     } else
       migrateOrgPermissionsFromEdge(res, orgName, orgURL, issuer, clientToken, migrationRecord, callback)
@@ -225,7 +230,7 @@ function migrateOrgPermissionsFromEdge(res, orgName, orgURL, issuer, clientToken
             var teamLocation = clientRes.headers['location']
             updateOrgPermissons(orgPermission, body.name, teamLocation)
           } else
-            console.log(`unable to ${replacedWithPut ? 'update' : 'create'} team. orgName: ${orgName} role: ${edgeRoleName} stauts: ${clientRes.statusCode} body ${body}`)
+            log('addRoleToOrg', `unable to ${replacedWithPut ? 'update' : 'create'} team. orgName: ${orgName} role: ${edgeRoleName} stauts: ${clientRes.statusCode} body ${body}`)
 
           // now create the permissions for the org after looping through all the roles(teams)
           if (rolesProcessed === totalNumberOfRoles) {
@@ -403,12 +408,19 @@ function remigrateOnSchedule() {
   db.getMigrationsOlderThan(now - (REMIGRATION_INTERVAL / SPEEDUP), function(migrations) {
     for (let i=0; i<migrations.length; i++) {
       var migration = migrations[i]
-      var orgurl = migration.orgurl
       var orgName = migration.data.orgName
-      var issuer = migration.data.issuer
       var lastMigrationTime = migration.startTime
       ifAuditShowsChange(orgName, lastMigrationTime, function() {
-        console.log('scheduled remigration', 'orgurl', orgurl, 'orgName', orgName, 'issuer', issuer)
+        var orgurl = migration.orgurl
+        var issuer = migration.data.issuer
+        var requestBody = {resource: orgurl}
+        var res = rLib.errorHandler(function(result) {
+          if (result.statusCode == 200)
+            log('remigrateOnSchedule', `successfully remigrated org named ${orgName} url ${orgurl}`)
+          else
+            log('remigrateOnSchedule', `failed to remigrate. statusCode: ${result.statusCode} headers: ${result.headers} body: ${result.body}`)
+        })
+        handleReMigration(res, issuer, requestBody)
       })
     }
   })
@@ -418,7 +430,7 @@ var port = process.env.PORT
 function start() {
   db.init(function () {
     http.createServer(requestHandler).listen(port, function () {
-      console.log(`server is listening on ${port}`)
+      log('start', `server is listening on ${port}`)
     })
     setInterval(remigrateOnSchedule, REMIGRATION_CHECK_INTERVAL / SPEEDUP)
   })

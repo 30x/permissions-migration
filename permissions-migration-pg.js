@@ -10,14 +10,19 @@ var config = {
 
 var pool = new Pool(config)
 
+const COMPONENT_NAME = 'permissions-migration-pg'
+function log(functionName, text) {
+  console.log(Date.now(), COMPONENT_NAME, functionName, text)
+}
+
 function writeMigrationRecord(orgURL, data) {
   var time = Date.now()
   var query = `UPDATE migrations SET (endtime, data) = (${time}, '${JSON.stringify(data)}')`
   pool.query(query, function (err, pgResult) {
     if (err) 
-      console.log(`unable to write migration record for ${orgURL} err: ${err}`)
+      log('writeMigrationRecord', `unable to write migration record for ${orgURL} err: ${err}`)
     else
-      console.log(`wrote migration record for ${orgURL} at time ${time}`)
+      log('writeMigrationRecord', `wrote migration record for ${orgURL} at time ${time}`)
   })
 }
 
@@ -51,10 +56,10 @@ function setMigratingFlag(orgName, orgURL, callback) {
   var query = `INSERT INTO migrations (orgURL, startTime, endTime, data) values ('${orgURL}', ${time}, 0, '${JSON.stringify(newRecord)}') ON CONFLICT (orgURL) DO UPDATE SET startTime = EXCLUDED.startTime WHERE migrations.endTime > migrations.startTime OR (migrations.startTime > migrations.endTime AND migrations.startTime <  ${time - 30000}) RETURNING data`
   pool.query(query, function (err, pgResult) {
     if (err) {
-      console.log(`unable to write migration flag for ${orgURL} err: ${err}`)
+      log('setMigratingFlag', `unable to write migration flag for ${orgURL} err: ${err}`)
       callback(err)
     } else {
-      console.log(`wrote migration flag for ${orgURL} at time ${time}`)
+      log('setMigratingFlag', `wrote migration flag for ${orgURL} at time ${time}`)
       if (pgResult.rowCount == 0)
         callback(null, true)
       else
@@ -75,7 +80,7 @@ function init(callback) {
           console.error('error creating migrations table', err)
         } else {
           release()
-          console.log('permissions-migration-db: connected to PG, config: ', config)
+          log('init', `connected to PG, host: ${config.host} database: ${config.database}`)
           callback()
         }
       })    
