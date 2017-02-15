@@ -34,14 +34,12 @@ function handleMigrationRequest(req, res, body){
   })
 }
 
-function handleReMigration(res, issuer, body){ 
-  withClientCredentialsDo(res, issuer, function(clientToken) { 
-    verifyMigrationRequest(res, body, function(orgName, orgURL) {
-      performMigration(res, orgName, orgURL, issuer, clientToken, function() {
-        rLib.ok(res)              
-      }, function() {
-        rLib.badRequest(res, {msg: `migration in progress for org: ${orgURL}`})
-      })
+function handleReMigration(res, issuer, clientToken, body){ 
+  verifyMigrationRequest(res, body, function(orgName, orgURL) {
+    performMigration(res, orgName, orgURL, issuer, clientToken, function() {
+      rLib.ok(res)              
+    }, function() {
+      rLib.badRequest(res, {msg: `migration in progress for org: ${orgURL}`})
     })
   })
 }
@@ -49,7 +47,9 @@ function handleReMigration(res, issuer, body){
 function handleReMigrationRequest(req, res, body){ 
   var requestUser = lib.getUser(req.headers.authorization)
   var issuer = requestUser.split('#')[0]  
-  handleReMigration(res, issuer, body)
+  withClientCredentialsDo(res, issuer, function(clientToken) { 
+    handleReMigration(res, issuer, clientToken, body)
+  })
 }
 
 function verifyMigrationRequest(res, body, callback) {
@@ -137,7 +137,6 @@ function withEdgeUserUUIDsDo(res, issuer, clientToken, edgeRolesAndPermissions, 
   clientHeaders['Accept'] = 'application/json'
   clientHeaders['Content-Type'] = 'application/json'
   clientHeaders.authorization = 'Bearer ' + clientToken
-
   // translate the user emails to their SSO UUIDs
   var allUsers = []
   for (var edgeRoleName in edgeRolesAndPermissions) {
@@ -376,7 +375,7 @@ function sendExternalRequestThen(res, flowThroughHeaders, address, path, method,
   else
     clientReq = http.request(options, callback)
   clientReq.on('error', function (err) {
-    console.log(`sendHttpRequest: error ${err}`)
+    log('sendExternalRequestThen', `sendHttpRequest: error ${err}`)
     rLib.internalError(res, {err:err})
   })
   if (body) clientReq.write(body)
@@ -398,29 +397,45 @@ function requestHandler(req, res) {
     rLib.notFound(res, `//${req.headers.host}${req.url} not found`)
 }
 
-function ifAuditShowsChange(orgName, lastMigrationTime, callback) {
-  var auditURL = `/v1/audits/organizations/${orgName}/userroles?expand=true&endTime=${lastMigrationTime}`
-  callback()
+function ifAuditShowsChange(res, clientToken, orgName, orgURL, lastMigrationTime, callback) {
+  var parts = url.parse(orgURL)
+  var address = `${parts.protocol}//${parts.host}`
+  var auditPath = `/v1/audits/organizations/${orgName}/userroles?expand=true&endTime=${lastMigrationTime}`
+  var clientHeaders = {}
+  clientHeaders['Accept'] = 'application/json'
+  clientHeaders['Content-Type'] = 'application/json'
+  clientHeaders.authorization = 'Bearer ' + clientToken
+  sendExternalRequestThen(res, clientHeaders, address, auditPath, 'GET', null, function(clientRes) {
+    lib.getClientResponseBody(clientRes, function(body) {
+      console.log('ifAuditShowsChange:', 'statusCode:', clientRes.statusCode, 'address:', address, 'auditPath:', auditPath, 'body:', body)
+      callback()
+    })
+  })
 }
 
 function remigrateOnSchedule() {
   var now = Date.now()
+  var res = rLib.errorHandler(function(result) {
+    log('remigrateOnSchedule', `unable to remigrate. statuscode: ${result.statusCode} headers: ${result.headers} body: ${JSON.stringify(result.body)}`)
+  })
   db.getMigrationsOlderThan(now - (REMIGRATION_INTERVAL / SPEEDUP), function(migrations) {
     for (let i=0; i<migrations.length; i++) {
       var migration = migrations[i]
       var orgName = migration.data.orgName
-      var lastMigrationTime = migration.startTime
-      ifAuditShowsChange(orgName, lastMigrationTime, function() {
-        var orgurl = migration.orgurl
-        var issuer = migration.data.issuer
-        var requestBody = {resource: orgurl}
-        var res = rLib.errorHandler(function(result) {
-          if (result.statusCode == 200)
-            log('remigrateOnSchedule', `successfully remigrated org named ${orgName} url ${orgurl}`)
-          else
-            log('remigrateOnSchedule', `failed to remigrate. statusCode: ${result.statusCode} headers: ${result.headers} body: ${result.body}`)
+      var lastMigrationTime = migration.starttime
+      var orgURL = migration.orgurl
+      var issuer = migration.data.issuer
+      withClientCredentialsDo(res, issuer, function(clientToken) {         
+        ifAuditShowsChange(res, clientToken, orgName, orgURL, lastMigrationTime, function() {
+          var requestBody = {resource: orgURL}
+          var res = rLib.errorHandler(function(result) {
+            if (result.statusCode == 200)
+              log('remigrateOnSchedule', `successfully remigrated org named ${orgName} url ${orgURL}`)
+            else
+              log('remigrateOnSchedule', `failed to remigrate. statusCode: ${result.statusCode} headers: ${result.headers} body: ${result.body}`)
+          })
+          handleReMigration(res, issuer, clientToken, requestBody)
         })
-        handleReMigration(res, issuer, requestBody)
       })
     }
   })
