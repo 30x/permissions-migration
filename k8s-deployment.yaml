@@ -27,6 +27,26 @@ spec:
         env:
           - name: PORT
             value: "3000"
+          - name: PG_HOST
+            valueFrom:
+              secretKeyRef:
+                name: permissions
+                key: pghost
+          - name: PG_USER
+            valueFrom:
+              secretKeyRef:
+                name: permissions
+                key: pguser
+          - name: PG_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: permissions
+                key: pgpassword
+          - name: PG_DATABASE
+            valueFrom:
+              secretKeyRef:
+                name: permissions
+                key: pgdatabase
           - name: INTERNAL_SY_ROUTER_HOST
             value: "kubernetes_host_ip"
           - name: INTERNAL_SY_ROUTER_PORT
