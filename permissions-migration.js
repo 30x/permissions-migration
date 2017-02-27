@@ -418,26 +418,29 @@ function remigrateOnSchedule() {
   var res = rLib.errorHandler(function(result) {
     log('remigrateOnSchedule', `unable to remigrate. statuscode: ${result.statusCode} headers: ${result.headers} body: ${JSON.stringify(result.body)}`)
   })
-  db.getMigrationsOlderThan(now - (REMIGRATION_INTERVAL / SPEEDUP), function(migrations) {
-    for (let i=0; i<migrations.length; i++) {
-      var migration = migrations[i]
-      var orgName = migration.data.orgName
-      var lastMigrationTime = migration.starttime
-      var orgURL = migration.orgurl
-      var issuer = migration.data.issuer
-      withClientCredentialsDo(res, issuer, function(clientToken) {         
-        ifAuditShowsChange(res, clientToken, orgName, orgURL, lastMigrationTime, function() {
-          var requestBody = {resource: orgURL}
-          var res = rLib.errorHandler(function(result) {
-            if (result.statusCode == 200)
-              log('remigrateOnSchedule', `successfully remigrated org named ${orgName} url ${orgURL}`)
-            else
-              log('remigrateOnSchedule', `failed to remigrate. statusCode: ${result.statusCode} headers: ${result.headers} body: ${result.body}`)
+  db.getMigrationsOlderThan(now - (REMIGRATION_INTERVAL / SPEEDUP), function(err, migrations) {
+    if (err == null)
+      for (let i=0; i<migrations.length; i++) {
+        var migration = migrations[i]
+        var orgName = migration.data.orgName
+        var lastMigrationTime = migration.starttime
+        var orgURL = migration.orgurl
+        var issuer = migration.data.issuer
+        withClientCredentialsDo(res, issuer, function(clientToken) {         
+          ifAuditShowsChange(res, clientToken, orgName, orgURL, lastMigrationTime, function() {
+            var requestBody = {resource: orgURL}
+            var res = rLib.errorHandler(function(result) {
+              if (result.statusCode == 200)
+                log('remigrateOnSchedule', `successfully remigrated org named ${orgName} url ${orgURL}`)
+              else
+                log('remigrateOnSchedule', `failed to remigrate. statusCode: ${result.statusCode} headers: ${result.headers} body: ${result.body}`)
+            })
+            handleReMigration(res, issuer, clientToken, requestBody)
           })
-          handleReMigration(res, issuer, clientToken, requestBody)
         })
-      })
-    }
+      }
+    else
+      log('remigrateOnSchedule', `failed to remigrate. err: ${JSON.stringify(err)}`)    
   })
 }
 

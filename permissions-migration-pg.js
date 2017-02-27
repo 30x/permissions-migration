@@ -46,7 +46,7 @@ function getMigrationsOlderThan(time, callback) {
     if (err) 
       callback(err)
     else
-      callback(pgResult.rows)
+      callback(null, pgResult.rows)
   })
 }
 
