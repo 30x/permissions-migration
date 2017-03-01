@@ -11,4 +11,5 @@ export PERMISSIONS_MIGRATION_CLIENTID=${PERMISSIONS_MIGRATION_CLIENTID:-defaultc
 export PERMISSIONS_MIGRATION_CLIENTSECRET=${PERMISSIONS_MIGRATION_CLIENTSECRET:-defaultsecret} # configure this in your shell when testing
 
 source test/local-export-pg-connection-variables.sh
+source ../set-migration-credentials.sh
 node permissions-migration.js

@@ -23,6 +23,7 @@ function log(functionName, text) {
 }
 
 function handleMigrationRequest(req, res, body){
+  log('handleMigrationRequest', `resource: ${body.resource}`)
   var requestUser = lib.getUser(req.headers.authorization)
   var issuer = requestUser.split('#')[0]  
   withClientCredentialsDo(res, issuer, function(clientToken) {
@@ -56,7 +57,7 @@ function verifyMigrationRequest(res, body, callback) {
   if(body.resource == null)
     rLib.badRequest(res, 'json property resource is required')
   else {
-    var orgRegex = new RegExp("^(?:http://|https://)(.*)/v1/(?:o|organizations)/(.*)/?.*$")
+    var orgRegex = new RegExp("^(?:http://|https://)([^/]+)/v1/(?:o|organizations)/([^/]+)/?.*$")
     var matches = body.resource.match(orgRegex)
     if(!matches || matches.length < 3 || CONFIGURED_EDGE_HOST !== matches[1])
       // doesn't look like an Edge resource or the configured edge hostname does not match the resource's hostname
@@ -75,6 +76,7 @@ function verifyMigrationRequest(res, body, callback) {
 } 
 
 function attemptMigration (res, auth, orgName, orgURL, issuer, clientToken, callback) {
+  log('attemptMigration', `orgName: ${orgName} orgURL: ${orgURL} issuer: ${issuer}`)
   var retryCount = 0;
   function seeIfMigrationNeeded () {
     // check to see if permissions already exist first
@@ -102,7 +104,9 @@ function attemptMigration (res, auth, orgName, orgURL, issuer, clientToken, call
 }
 
 function performMigration(res, orgName, orgURL, issuer, clientToken, callback, busyCallback) {
-  db.setMigratingFlag(orgName, orgURL, function(err, migrating, migrationRecord) {
+  log('performMigration', `orgName: ${orgName} orgURL: ${orgURL} issuer: ${issuer}`)
+  var initialRecord = {orgName: orgName, teams:{}, issuer: issuer, initialMigration: true}
+  db.setMigratingFlag(orgURL, initialRecord, function(err, migrating, migrationRecord) {
     if (err)
       rLib.internalError(res, {msg: 'unable to set migrating flag', err: err})
     else if (migrating) {
@@ -126,8 +130,11 @@ function withClientCredentialsDo(res, issuer, callback) {
       if (clientRes.statusCode == 200) {
         var clientToken = JSON.parse(body).access_token
         callback(clientToken)
-      } else
-        rLib.internalError(res, {msg: 'unable to authenticate with IDs service to perform migration', statusCode: clientRes.statusCode})
+      } else {
+        var msg = {msg: 'unable to authenticate with IDs service to perform migration', statusCode: clientRes.statusCode}
+        log('withClientCredentialsDo', msg)
+        rLib.internalError(res, msg)
+      }
     })
   })
 }
@@ -368,7 +375,7 @@ function sendExternalRequestThen(res, flowThroughHeaders, address, path, method,
   }
   if (addressParts.length > 2)
     options.port = addressParts[2]
-
+  log('sendExternalRequestThen', `method: ${method} address: ${address} path: ${path}`)
   var clientReq
   if (useHttps)
     clientReq = https.request(options, callback)
@@ -407,7 +414,7 @@ function ifAuditShowsChange(res, clientToken, orgName, orgURL, lastMigrationTime
   clientHeaders.authorization = 'Bearer ' + clientToken
   sendExternalRequestThen(res, clientHeaders, address, auditPath, 'GET', null, function(clientRes) {
     lib.getClientResponseBody(clientRes, function(body) {
-      console.log('ifAuditShowsChange:', 'statusCode:', clientRes.statusCode, 'address:', address, 'auditPath:', auditPath, 'body:', body)
+      log('ifAuditShowsChange:', `statusCode: ${clientRes.statusCode} address: ${address} auditPath: ${auditPath} body: ${JSON.stringify(body)}`)
       callback()
     })
   })
