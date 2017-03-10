@@ -389,21 +389,6 @@ function sendExternalRequestThen(res, flowThroughHeaders, address, path, method,
   clientReq.end()
 }
 
-function requestHandler(req, res) {
-  if (req.url.startsWith('/permissions-migration/migration-request')) 
-    if (req.method == 'POST')
-      lib.getServerPostObject(req, res, (x) => handleMigrationRequest(req, res, x))
-    else
-      rLib.methodNotAllowed(res, ['POST'])
-  else if (req.url.startsWith('/permissions-migration/re-migration-request'))
-    if (req.method == 'POST')
-      lib.getServerPostObject(req, res, (x) => handleReMigrationRequest(req, res, x))
-    else
-      rLib.methodNotAllowed(res, ['POST'])
-  else
-    rLib.notFound(res, `//${req.headers.host}${req.url} not found`)
-}
-
 function ifAuditShowsChange(res, clientToken, orgName, orgURL, lastMigrationTime, callback) {
   var parts = url.parse(orgURL)
   var address = `${parts.protocol}//${parts.host}`
@@ -451,14 +436,44 @@ function remigrateOnSchedule() {
   })
 }
 
+function requestHandler(req, res) {
+  if (req.url.startsWith('/permissions-migration/migration-request')) 
+    if (req.method == 'POST')
+      lib.getServerPostObject(req, res, (x) => handleMigrationRequest(req, res, x))
+    else
+      rLib.methodNotAllowed(res, ['POST'])
+  else if (req.url.startsWith('/permissions-migration/re-migration-request'))
+    if (req.method == 'POST')
+      lib.getServerPostObject(req, res, (x) => handleReMigrationRequest(req, res, x))
+    else
+      rLib.methodNotAllowed(res, ['POST'])
+  else
+    rLib.notFound(res, `//${req.headers.host}${req.url} not found`)
+}
+
+function init(callback) {
+  db.init(callback)
+}
+
 var port = process.env.PORT
-function start() {
-  db.init(function () {
+function run() {
+  init(function () {
     http.createServer(requestHandler).listen(port, function () {
       log('start', `server is listening on ${port}`)
     })
     setInterval(remigrateOnSchedule, REMIGRATION_CHECK_INTERVAL / SPEEDUP)
   })
+}
+
+function start() {
+  if (require.main === module)
+    run()
+  else
+    module.exports = {
+      requestHandler:requestHandler,
+      paths: ['/permissions-migration/migration-request', '/permissions-migration/re-migration-request'],
+      init: init
+    }
 }
 
 if (process.env.INTERNAL_SY_ROUTER_HOST == 'kubernetes_host_ip') 
