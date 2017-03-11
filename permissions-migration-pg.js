@@ -8,7 +8,7 @@ var config = {
   database: process.env.PG_DATABASE
 }
 
-var pool = new Pool(config)
+var pool
 
 const COMPONENT_NAME = 'permissions-migration-pg'
 function log(functionName, text) {
@@ -67,7 +67,8 @@ function setMigratingFlag(orgURL, newRecord, callback) {
   })
 }
 
-function init(callback) {
+function init(callback, aPool) {
+  pool = aPool || new Pool(config)
   var query = 'CREATE TABLE IF NOT EXISTS migrations (orgURL text primary key, startTime bigint, endTime bigint, data jsonb)'  
   pool.connect(function(err, client, release) {
     if(err)
