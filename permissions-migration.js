@@ -451,8 +451,8 @@ function requestHandler(req, res) {
     rLib.notFound(res, `//${req.headers.host}${req.url} not found`)
 }
 
-function init(callback) {
-  db.init(callback)
+function init(callback, aPool) {
+  db.init(callback, aPool)
 }
 
 var port = process.env.PORT
