@@ -17,8 +17,9 @@ function log(functionName, text) {
 
 function writeMigrationRecord(orgURL, data) {
   var time = Date.now()
-  var query = `UPDATE migrations SET (endtime, data) = (${time}, '${JSON.stringify(data)}')`
-  pool.query(query, function (err, pgResult) {
+  var query = 'UPDATE migrations SET (endtime, data) = ($1, $2)'
+  var args = [time, JSON.stringify(data)]
+  pool.query(query, args, function (err, pgResult) {
     if (err) 
       log('writeMigrationRecord', `unable to write migration record for ${orgURL} err: ${err}`)
     else
@@ -28,8 +29,8 @@ function writeMigrationRecord(orgURL, data) {
 
 function readMigrationRecord(orgURL, callback) {
   var time = Date.now()
-  var query = `SELECT * from migrations WHERE orgURL = '${orgURL}'`
-  pool.query(query, function (err, pgResult) {
+  var query = 'SELECT * from migrations WHERE orgURL = $1'
+  pool.query(query, [orgURL], function (err, pgResult) {
     if (err) 
       callback(err)
     else
@@ -41,8 +42,8 @@ function readMigrationRecord(orgURL, callback) {
 }
 
 function getMigrationsOlderThan(time, callback) {
-  var query = `SELECT * from migrations WHERE startTime < ${time}`
-  pool.query(query, function (err, pgResult) {
+  var query = 'SELECT * from migrations WHERE startTime < $1'
+  pool.query(query, [time], function (err, pgResult) {
     if (err) 
       callback(err)
     else
@@ -52,7 +53,8 @@ function getMigrationsOlderThan(time, callback) {
 
 function setMigratingFlag(orgURL, newRecord, callback) {
   var time = Date.now()
-  var query = `INSERT INTO migrations (orgURL, startTime, endTime, data) values ('${orgURL}', ${time}, 0, '${JSON.stringify(newRecord)}') ON CONFLICT (orgURL) DO UPDATE SET startTime = EXCLUDED.startTime WHERE migrations.endTime > migrations.startTime OR (migrations.startTime > migrations.endTime AND migrations.startTime <  ${time - 30000}) RETURNING data`
+  var query = 'INSERT INTO migrations (orgURL, startTime, endTime, data) values ($1, ${time}, 0, $2) ON CONFLICT (orgURL) DO UPDATE SET startTime = EXCLUDED.startTime WHERE migrations.endTime > migrations.startTime OR (migrations.startTime > migrations.endTime AND migrations.startTime <  ${time - 30000}) RETURNING data'
+  var args = [orgURL, JSON.stringify(newRecord)]
   pool.query(query, function (err, pgResult) {
     if (err) {
       log('setMigratingFlag', `unable to write migration flag for ${orgURL} err: ${err}`)
