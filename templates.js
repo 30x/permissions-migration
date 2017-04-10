@@ -42,7 +42,7 @@ exports.orgPermission = function(org, orgURL, user){
 exports.envPermission = function(baseLocation, org) {
   return {
     _subject: baseLocation + 'v1/o/' + org + '/environments',
-    _inheritsPermissionsFrom: '/o/' + org,
+    _inheritsPermissionsOf: '/o/' + org,
     _self: {
       read: [],
       update: [],
@@ -70,7 +70,7 @@ exports.envPermission = function(baseLocation, org) {
 exports.shipyardEnvPermission = function(baseLocation, org) {
   return {
     _subject: baseLocation + 'v1/o/' + org + '/shipyardEnvironments',
-    _inheritsPermissionsFrom: '/o/' + org,
+    _inheritsPermissionsOf: '/o/' + org,
     _self: {
       read: [],
       update: [],
