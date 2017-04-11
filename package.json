@@ -17,8 +17,8 @@
   },
   "homepage": "https://github.com/30x/permissions-migration#readme",
   "dependencies": {
-    "http-helper-functions": "0.0.97",
-    "permissions-helper-functions": "0.0.49",
+    "http-helper-functions": "0.0.102",
+    "permissions-helper-functions": "0.0.50",
     "pg": "^6.1.2",
     "response-helper-functions": "0.0.12"
   }
