@@ -1,7 +1,7 @@
 const https = require('https')
 
-const clientId = process.env.PERMISSIONS_MIGRATION_CLIENTID || 'permissions-client'
-const clientSecret = process.env.PERMISSIONS_MIGRATION_CLIENTSECRET || 'permissionsecret'
+const clientId = process.env.PERMISSIONS_CLIENTID || 'permissions-client'
+const clientSecret = process.env.PERMISSIONS_CLIENTSECRET || 'permissionsecret'
 
 var clientAuthEncoded = new Buffer(clientId + ':' + clientSecret).toString('base64')
 var headers = {

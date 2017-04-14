@@ -51,9 +51,9 @@ spec:
             value: "kubernetes_host_ip"
           - name: INTERNAL_SY_ROUTER_PORT
             value: "30556"
-          - name: PERMISSIONS_MIGRATION_CLIENTID
+          - name: PERMISSIONS_CLIENTID
             value: "permissions-client"
-          - name: PERMISSIONS_MIGRATION_CLIENTSECRET
+          - name: PERMISSIONS_CLIENTSECRET
             value: "permissionsecret"
           - name: EDGE_ADDRESS
             value: "https://api.e2e.apigee.net"

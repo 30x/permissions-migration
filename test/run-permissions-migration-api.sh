@@ -7,8 +7,8 @@ export EXTERNAL_SY_ROUTER_PORT="8080"
 export INTERNAL_SY_ROUTER_HOST="localhost"
 export INTERNAL_SY_ROUTER_PORT="8080"
 export EDGE_ADDRESS="https://api.e2e.apigee.net"
-export PERMISSIONS_MIGRATION_CLIENTID=${PERMISSIONS_MIGRATION_CLIENTID:-defaultclient} # configure this in your shell when testing
-export PERMISSIONS_MIGRATION_CLIENTSECRET=${PERMISSIONS_MIGRATION_CLIENTSECRET:-defaultsecret} # configure this in your shell when testing
+export PERMISSIONS_CLIENTID=${PERMISSIONS_CLIENTID:-defaultclient} # configure this in your shell when testing
+export PERMISSIONS_CLIENTSECRET=${PERMISSIONS_CLIENTSECRET:-defaultsecret} # configure this in your shell when testing
 
 source test/local-export-pg-connection-variables.sh
 source ../set-migration-credentials.sh

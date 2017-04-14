@@ -8,8 +8,8 @@ only migrating the default Edge roles and permissions.
 In order for this service to work properly, the following ENV variables must be available with valid values:  
 
 `EDGE_ADDRESS`  
-`PERMISSIONS_MIGRATION_CLIENTID`  
-`PERMISSIONS_MIGRATION_CLIENTSECRET`  
+`PERMISSIONS_CLIENTID`  
+`PERMISSIONS_CLIENTSECRET`  
 
 
 # Testing

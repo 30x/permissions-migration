@@ -10,8 +10,8 @@ const db = require('./permissions-migration-pg.js')
 
 const CONFIGURED_EDGE_ADDRESS = process.env.EDGE_ADDRESS // something of the form https://api.e2e.apigee.net or https://api.enterprise.apigee.net
 const CONFIGURED_EDGE_HOST = CONFIGURED_EDGE_ADDRESS.split(':')[1].replace('//', '') // // something of the form api.e2e.apigee.net or api.enterprise.apigee.net
-const CLIENT_ID = process.env.PERMISSIONS_MIGRATION_CLIENTID
-const CLIENT_SECRET = process.env.PERMISSIONS_MIGRATION_CLIENTSECRET
+const CLIENT_ID = process.env.PERMISSIONS_CLIENTID
+const CLIENT_SECRET = process.env.PERMISSIONS_CLIENTSECRET
 const COMPONENT_NAME = 'permissions-migration'
 
 const REMIGRATION_CHECK_INTERVAL = 60 * 1000  // every minute
