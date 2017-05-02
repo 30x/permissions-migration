@@ -25,14 +25,18 @@ function log(functionName, text) {
 function handleMigrationRequest(req, res, body){
   log('handleMigrationRequest', `resource: ${body.resource}`)
   var requestUser = lib.getUser(req.headers.authorization)
-  var issuer = requestUser.split('#')[0]  
-  withClientCredentialsDo(res, issuer, function(clientToken) {
-    verifyMigrationRequest(res, body, function(orgName, orgURL) {
-      attemptMigration(res, clientToken, orgName, orgURL, issuer, clientToken, function(param) {
-        rLib.ok(res)
+  if (requestUser === null)
+    rLib.unauthorized(res, `bearer token missing or expired`)
+  else {
+    var issuer = requestUser.split('#')[0]
+    withClientCredentialsDo(res, issuer, function (clientToken) {
+      verifyMigrationRequest(res, body, function (orgName, orgURL) {
+        attemptMigration(res, clientToken, orgName, orgURL, issuer, clientToken, function (param) {
+          rLib.ok(res)
+        })
       })
     })
-  })
+  }
 }
 
 function handleReMigration(res, issuer, clientToken, body){ 
