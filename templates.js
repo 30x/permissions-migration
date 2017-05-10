@@ -14,28 +14,10 @@ exports.orgPermission = function(org, orgURL, user){
       read: [user],
       remove: [user]
     },
-    analytics: {},
-    apis: {},
-    apiproducts: {},
-    apps: {},
-    audits: {},
-    companies: {},
-    dailysummaryreport: {},
-    developers: {},
-    environments: {},
+    subscriptions: {},
     events: {},
-    keyvaluemaps: {},
-    keystores: {},
-    shipyardEnvironments: {},
-    oauth1: {},
-    oauth2: {},
-    stats: {},
-    targetservers: {},
-    reports: {},
-    resourcefiles: {},
-    userroles: {},
-    vaults: {},
-    virtualhosts: {}
+    notifications: {},
+    history: {}
   }
 }
 
@@ -54,16 +36,7 @@ exports.envPermission = function(baseLocation, org) {
       add: [],
       read: [],
       remove: []
-    },
-    apis: {},
-    resourcefiles: {},
-    keystores: {},
-    keyvaluemaps: {},
-    analytics: {},
-    vaults: {},
-    caches: {},
-    virtualhosts: {},
-    targetservers: {}
+    }
   }
 }
 
@@ -82,16 +55,7 @@ exports.shipyardEnvPermission = function(baseLocation, org) {
       add: [],
       read: [],
       remove: []
-    },
-    apis: {},
-    resourcefiles: {},
-    keystores: {},
-    keyvaluemaps: {},
-    analytics: {},
-    vaults: {},
-    caches: {},
-    virtualhosts: {},
-    targetservers: {}
+    }
   }
 }
 
