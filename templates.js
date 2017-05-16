@@ -14,10 +14,34 @@ exports.orgPermission = function(org, orgURL, user){
       read: [user],
       remove: [user]
     },
-    subscriptions: {},
-    events: {},
-    notifications: {},
-    history: {}
+    subscriptions: {
+      read: [],
+      create: [],
+      update: [],
+      delete: []
+    },
+    events: {
+      read: [],
+      create: [],
+      update: [],
+      delete: []
+    },
+    notifications: {
+      read: [],
+      create: [],
+      update: [],
+      delete: []
+    },
+    history: {
+      read: [],
+      delete: []
+    },
+    templates: {
+      read: [],
+      create: [],
+      update: [],
+      delete: []
+    }
   }
 }
 

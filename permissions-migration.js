@@ -192,16 +192,22 @@ function migrateOrgPermissionsFromEdge(res, orgName, orgURL, issuer, clientToken
       }
       var CLIENT_ID = lib.getUserFromToken(clientToken)
       var orgPermission = templates.orgPermission(orgName, orgURL, CLIENT_ID)
-      if (migrationRecord.initialMigration) // permissions-migration-pg.js sets initialMigration
-        lib.sendInternalRequestThen(res, 'POST','/permissions', headers, JSON.stringify(orgPermission), function (clientRes) { 
-          lib.getClientResponseBody(clientRes, function(data) {
+      if (migrationRecord.initialMigration) { // permissions-migration-pg.js sets initialMigration
+        let permissionsHeaders = Object.assign({},headers)
+        permissionsHeaders['x-client-authorization'] = clientToken
+        lib.sendInternalRequestThen(res, 'POST', '/permissions', permissionsHeaders, JSON.stringify(orgPermission), function (clientRes) {
+          lib.getClientResponseBody(clientRes, function (data) {
             if (clientRes.statusCode != 201) {
-              rLib.internalError(res ,{msg: 'unable to create permissions for org', statuscode: clientRes.statusCode})                
+              rLib.internalError(res, {
+                msg: 'unable to create permissions for org',
+                statuscode: clientRes.statusCode,
+                data: data
+              })
             } else
               makeTeams()
           })
         })
-      else
+      } else
         makeTeams()
 
       function makeTeams() {
@@ -264,36 +270,120 @@ function updateOrgPermissons(orgPermission, roleNames, teamLocation) {
   if (roleNames.indexOf('orgadmin') !== -1) {
     // add permissions for the org resource
     orgPermission._self.read.push(teamLocation)
+    orgPermission._self.update.push(teamLocation)
+    orgPermission._self.put.push(teamLocation)
+
 
     // add permissions heirs
     orgPermission._permissionsHeirs.read.push(teamLocation)
     orgPermission._permissionsHeirs.add.push(teamLocation)
     orgPermission._permissionsHeirs.remove.push(teamLocation)
 
-    // add shipyard permissions
-    orgPermission.shipyardEnvironments.create = []
-    orgPermission.shipyardEnvironments.create.push(teamLocation)
+    // subscriptions permissions
+    orgPermission.subscriptions.create.push(teamLocation)
+    orgPermission.subscriptions.read.push(teamLocation)
+    orgPermission.subscriptions.update.push(teamLocation)
+    orgPermission.subscriptions.delete.push(teamLocation)
 
-    orgPermission.shipyardEnvironments.read = []
-    orgPermission.shipyardEnvironments.read.push(teamLocation)
+    // notifications permissions
+    orgPermission.notifications.create.push(teamLocation)
+    orgPermission.notifications.read.push(teamLocation)
+    orgPermission.notifications.update.push(teamLocation)
+    orgPermission.notifications.delete.push(teamLocation)
+
+    // events permissions
+    orgPermission.events.create.push(teamLocation)
+    orgPermission.events.read.push(teamLocation)
+    orgPermission.events.update.push(teamLocation)
+    orgPermission.events.delete.push(teamLocation)
+
+    // history permissions
+    orgPermission.history.read.push(teamLocation)
+    orgPermission.history.delete.push(teamLocation)
+
+    // templates permissions
+    orgPermission.templates.create.push(teamLocation)
+    orgPermission.templates.read.push(teamLocation)
+    orgPermission.templates.update.push(teamLocation)
+    orgPermission.templates.delete.push(teamLocation)
+
 
   } else if (roleNames.indexOf('opsadmin') !== -1) {
+
     orgPermission._self.read.push(teamLocation)
     orgPermission._permissionsHeirs.read.push(teamLocation)
     orgPermission._permissionsHeirs.add.push(teamLocation)
+
+    // subscriptions permissions
+    orgPermission.subscriptions.create.push(teamLocation)
+    orgPermission.subscriptions.read.push(teamLocation)
+    orgPermission.subscriptions.update.push(teamLocation)
+    orgPermission.subscriptions.delete.push(teamLocation)
+
+    // notifications permissions
+    orgPermission.notifications.create.push(teamLocation)
+    orgPermission.notifications.read.push(teamLocation)
+    orgPermission.notifications.update.push(teamLocation)
+    orgPermission.notifications.delete.push(teamLocation)
+
+    // events permissions
+    orgPermission.events.create.push(teamLocation)
+    orgPermission.events.read.push(teamLocation)
+    orgPermission.events.update.push(teamLocation)
+    orgPermission.events.delete.push(teamLocation)
+
+    // history permissions
+    orgPermission.history.read.push(teamLocation)
+    orgPermission.history.delete.push(teamLocation)
+
+    // templates permissions
+    orgPermission.templates.create.push(teamLocation)
+    orgPermission.templates.read.push(teamLocation)
+    orgPermission.templates.update.push(teamLocation)
+    orgPermission.templates.delete.push(teamLocation)
+
 
   } else if (roleNames.indexOf('businessuser') !== -1) {
     orgPermission._self.read.push(teamLocation)
     orgPermission._permissionsHeirs.read.push(teamLocation)
     orgPermission._permissionsHeirs.add.push(teamLocation)
 
+    // subscription permissions
+    orgPermission.subscriptions.read.push(teamLocation)
+
+    // notifications permissions
+    orgPermission.notifications.read.push(teamLocation)
+
+    // events permissions
+    orgPermission.events.read.push(teamLocation)
+
+    // history permissions
+    orgPermission.history.read.push(teamLocation)
+
+    // templates permissions
+    orgPermission.templates.read.push(teamLocation)
+
   } else if (roleNames.indexOf('user') !== -1) {
     orgPermission._self.read.push(teamLocation)
     orgPermission._permissionsHeirs.read.push(teamLocation)
     orgPermission._permissionsHeirs.add.push(teamLocation)
 
+    // subscription permissions
+    orgPermission.subscriptions.read.push(teamLocation)
+
+    // notifications permissions
+    orgPermission.notifications.read.push(teamLocation)
+
+    // events permissions
+    orgPermission.events.read.push(teamLocation)
+
+    // history permissions
+    orgPermission.history.read.push(teamLocation)
+
+    // templates permissions
+    orgPermission.templates.read.push(teamLocation)
+
   } else if (roleNames.indexOf('readonlyadmin') !== -1) {
-    orgPermission._permissions.read.push(teamLocation)
 
     // add permissions for the org resource
     orgPermission._self.read.push(teamLocation)
@@ -301,11 +391,41 @@ function updateOrgPermissons(orgPermission, roleNames, teamLocation) {
     // add permissions heirs
     orgPermission._permissionsHeirs.read.push(teamLocation)
 
+    // subscription permissions
+    orgPermission.subscriptions.read.push(teamLocation)
+
+    // notifications permissions
+    orgPermission.notifications.read.push(teamLocation)
+
+    // events permissions
+    orgPermission.events.read.push(teamLocation)
+
+    // history permissions
+    orgPermission.history.read.push(teamLocation)
+
+    // templates permissions
+    orgPermission.templates.read.push(teamLocation)
+
   } else {
     // not a standard Edge role, just add read permissions for the org for now
     orgPermission._self.read.push(teamLocation)
     orgPermission._permissionsHeirs.read.push(teamLocation)
     orgPermission._permissionsHeirs.add.push(teamLocation)
+
+    // subscription permissions
+    orgPermission.subscriptions.read.push(teamLocation)
+
+    // notifications permissions
+    orgPermission.notifications.read.push(teamLocation)
+
+    // events permissions
+    orgPermission.events.read.push(teamLocation)
+
+    // history permissions
+    orgPermission.history.read.push(teamLocation)
+
+    // templates permissions
+    orgPermission.templates.read.push(teamLocation)
   }
 }
 
