@@ -25,7 +25,7 @@ def main():
     }
 
     # POST re-migration-request ( success )
-    permissions_re_migration_url = urljoin(BASE_URL, '/permissions-migration/re-migration-request')
+    permissions_re_migration_url = urljoin(BASE_URL, '/az-permissions-migration/re-migration-request')
     headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
     r = requests.post(permissions_re_migration_url, headers=headers, json=migration_request)
     if r.status_code == 200:

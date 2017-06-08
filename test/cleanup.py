@@ -20,7 +20,7 @@ def main():
     print 'sending requests to %s' % BASE_URL
 
     # GET permissions
-    permissions_url = urljoin(BASE_URL, '/permissions?%s' % 'https://api.e2e.apigee.net/v1/o/usergrid-e2e')
+    permissions_url = urljoin(BASE_URL, '/az-permissions?%s' % 'https://api.e2e.apigee.net/v1/o/usergrid-e2e')
     headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
     r = requests.get(permissions_url, headers=headers)
     if r.status_code == 200:

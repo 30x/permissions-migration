@@ -91,7 +91,7 @@ exports.stdPermission = function(subject, inherits){
       inheritsPermissionsFrom: "/o/usergrid-e2e/environments"
     },
     _permissions: {
-      _self: "/permissions?/o/usergrid-e2e/environments/test"
+      _self: "/az-permissions?/o/usergrid-e2e/environments/test"
     }
   }
 }

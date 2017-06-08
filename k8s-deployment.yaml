@@ -18,7 +18,7 @@ spec:
         routable: "true"
       annotations:
         privateHosts: sso.k8s.dev
-        privatePaths: 3000:/permissions-migration/migration-request
+        privatePaths: 3000:/az-permissions-migration/migration-request
     spec:
       containers:
       - name: permissions-migration

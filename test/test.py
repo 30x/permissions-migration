@@ -25,7 +25,7 @@ def main():
     }
 
     # POST migration-request ( success )
-    permissions_migration_url = urljoin(BASE_URL, '/permissions-migration/migration-request')
+    permissions_migration_url = urljoin(BASE_URL, '/az-permissions-migration/migration-request')
     headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
     r = requests.post(permissions_migration_url, headers=headers, json=migration_request)
     if r.status_code == 200:
@@ -35,7 +35,7 @@ def main():
         return
 
     # POST migration-request ( conflict )
-    permissions_migration_url = urljoin(BASE_URL, '/permissions-migration/migration-request')
+    permissions_migration_url = urljoin(BASE_URL, '/az-permissions-migration/migration-request')
     headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
     r = requests.post(permissions_migration_url, headers=headers, json=migration_request)
     if r.status_code == 409:
@@ -49,7 +49,7 @@ def main():
         'resource': 'https://api.e2e.apigee.net/v1/notanedgeapi/usergrid-e2e'
     }
 
-    permissions_migration_url = urljoin(BASE_URL, '/permissions-migration/migration-request')
+    permissions_migration_url = urljoin(BASE_URL, '/az-permissions-migration/migration-request')
     headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
     r = requests.post(permissions_migration_url, headers=headers, json=migration_request)
     if r.status_code == 404:
@@ -63,7 +63,7 @@ def main():
         'resource': 'https://api.enterprise.apigee.com/v1/o/usergrid-e2e'
     }
 
-    permissions_migration_url = urljoin(BASE_URL, '/permissions-migration/migration-request')
+    permissions_migration_url = urljoin(BASE_URL, '/az-permissions-migration/migration-request')
     headers = {'Content-Type': 'application/json','Authorization': 'Bearer %s' % TOKEN1}
     r = requests.post(permissions_migration_url, headers=headers, json=migration_request)
     if r.status_code == 404:

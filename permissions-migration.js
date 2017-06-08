@@ -84,9 +84,9 @@ function attemptMigration (res, auth, orgName, orgURL, issuer, clientToken, call
   var retryCount = 0;
   function seeIfMigrationNeeded () {
     // check to see if permissions already exist first
-    lib.sendInternalRequest('GET', `/permissions?${orgURL}`, {authorization: `Bearer ${clientToken}`}, null, function(err, clientRes){
+    lib.sendInternalRequest('GET', `/az-permissions?${orgURL}`, {authorization: `Bearer ${clientToken}`}, null, function(err, clientRes){
       if (err)
-        rLib.internalError(res, {msg: `unable to GET permissions: /permissions?${orgURL} err: ${err}`})
+        rLib.internalError(res, {msg: `unable to GET permissions: /az-permissions?${orgURL} err: ${err}`})
       else if (clientRes.statusCode == 200)
         rLib.duplicate(res, {msg: `Permissions already exist for ${orgURL}`})
       else if (clientRes.statusCode == 404)
@@ -195,7 +195,7 @@ function migrateOrgPermissionsFromEdge(res, orgName, orgURL, issuer, clientToken
       if (migrationRecord.initialMigration) { // permissions-migration-pg.js sets initialMigration
         let permissionsHeaders = Object.assign({},headers)
         permissionsHeaders['x-client-authorization'] = clientToken
-        lib.sendInternalRequestThen(res, 'POST', '/permissions', permissionsHeaders, JSON.stringify(orgPermission), function (clientRes) {
+        lib.sendInternalRequestThen(res, 'POST', '/az-permissions', permissionsHeaders, JSON.stringify(orgPermission), function (clientRes) {
           lib.getClientResponseBody(clientRes, function (data) {
             if (clientRes.statusCode != 201) {
               rLib.internalError(res, {
@@ -221,7 +221,7 @@ function migrateOrgPermissionsFromEdge(res, orgName, orgURL, issuer, clientToken
             lib.sendInternalRequestThen(res, 'PUT', existingTeams[edgeRoleName], headers, JSON.stringify(team), function (clientRes) { 
               lib.getClientResponseBody(clientRes, function (body) {
                 if (clientRes.statusCode == 404) // we had a team but its gone
-                  lib.sendInternalRequestThen(res, 'POST', '/teams', headers, JSON.stringify(team), function (clientRes) {
+                  lib.sendInternalRequestThen(res, 'POST', '/az-teams', headers, JSON.stringify(team), function (clientRes) {
                     lib.getClientResponseBody(clientRes, function (body) {
                       addRoleToOrg(clientRes, edgeRoleName, body, false)
                     })
@@ -231,7 +231,7 @@ function migrateOrgPermissionsFromEdge(res, orgName, orgURL, issuer, clientToken
               })
             })
           else
-            lib.sendInternalRequestThen(res, 'POST', '/teams', headers, JSON.stringify(team), function (clientRes) {
+            lib.sendInternalRequestThen(res, 'POST', '/az-teams', headers, JSON.stringify(team), function (clientRes) {
               lib.getClientResponseBody(clientRes, function (body) {
                 addRoleToOrg(clientRes, edgeRoleName, body, false)
               })
@@ -250,7 +250,7 @@ function migrateOrgPermissionsFromEdge(res, orgName, orgURL, issuer, clientToken
 
           // now create the permissions for the org after looping through all the roles(teams)
           if (rolesProcessed === totalNumberOfRoles) {
-            lib.sendInternalRequestThen(res, 'PUT', `/permissions?${orgURL}`, headers, JSON.stringify(orgPermission), function (clientRes) {
+            lib.sendInternalRequestThen(res, 'PUT', `/az-permissions?${orgURL}`, headers, JSON.stringify(orgPermission), function (clientRes) {
               db.writeMigrationRecord(orgPermission._subject, {orgName: orgName, teams: teams, issuer: issuer})   
               lib.getClientResponseBody(clientRes, function(body) {
                 if (clientRes.statusCode == 200)
@@ -469,7 +469,7 @@ function getRoleUsersFromEdge(res, callHeaders, orgName, role, callback) {
 }
 
 function getRolePermissionsFromEdge(res, callHeaders, orgName, role, callback) {
-  sendExternalRequestThen(res, callHeaders, CONFIGURED_EDGE_ADDRESS, '/v1/o/' + orgName + '/userroles/' + role + '/permissions', 'GET', null, function (response) {
+  sendExternalRequestThen(res, callHeaders, CONFIGURED_EDGE_ADDRESS, '/v1/o/' + orgName + '/userroles/' + role + '/az-permissions', 'GET', null, function (response) {
     lib.getClientResponseBody(response, function (body) {
       callback(JSON.parse(body))
     })
@@ -561,12 +561,12 @@ function remigrateOnSchedule() {
 }
 
 function requestHandler(req, res) {
-  if (req.url.startsWith('/permissions-migration/migration-request')) 
+  if (req.url.startsWith('/az-permissions-migration/migration-request')) 
     if (req.method == 'POST')
       lib.getServerPostObject(req, res, (x) => handleMigrationRequest(req, res, x))
     else
       rLib.methodNotAllowed(res, ['POST'])
-  else if (req.url.startsWith('/permissions-migration/re-migration-request'))
+  else if (req.url.startsWith('/az-permissions-migration/re-migration-request'))
     if (req.method == 'POST')
       lib.getServerPostObject(req, res, (x) => handleReMigrationRequest(req, res, x))
     else
@@ -595,7 +595,7 @@ function start() {
   else
     module.exports = {
       requestHandler:requestHandler,
-      paths: ['/permissions-migration/migration-request', '/permissions-migration/re-migration-request'],
+      paths: ['/az-permissions-migration/migration-request', '/az-permissions-migration/re-migration-request'],
       init: init
     }
 }
